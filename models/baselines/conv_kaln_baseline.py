@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from .kalnet_conv import KALNConv2DLayer
+from kan_convs import KALNConv2DLayer
 
 
-class SimpleConvKANL(nn.Module):
+class SimpleConvKALN(nn.Module):
     def __init__(
             self,
             layer_sizes,
@@ -12,7 +12,7 @@ class SimpleConvKANL(nn.Module):
             input_channels: int = 1,
             degree: int = 3,
             groups: int = 1):
-        super(SimpleConvKANL, self).__init__()
+        super(SimpleConvKALN, self).__init__()
 
         self.layers = nn.Sequential(
             KALNConv2DLayer(input_channels, layer_sizes[0], degree, kernel_size=3, groups=1, padding=1, stride=1,

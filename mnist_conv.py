@@ -1,4 +1,7 @@
-import torch, time, os
+import json
+import os
+import time
+import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
@@ -6,7 +9,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from conv_kaln.conv_kanl_baseline import SimpleConvKANL
+from models import SimpleConvKALN, SimpleFastConvKAN, SimpleConvKAN
 
 
 class Trainer:
@@ -102,20 +105,29 @@ def quantize_and_evaluate(model, val_loader, criterion, save_path):
     return quantized_val_loss / len(val_loader), quantized_val_accuracy / len(val_loader), evaluation_time
 
 
-def train_and_validate(epochs=15):
+def train_and_validate(model, epochs=15, dataset_name='MNIST', model_save_dir="./models"):
     # Function to train, validate, quantize the model, and evaluate the quantized model
     # Define the transformations for the datasets
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
     # Load and transform the MNIST training dataset
-    trainset = torchvision.datasets.MNIST(root="./data", train=True, download=True, transform=transform)
-    # Load and transform the MNIST validation dataset
-    valset = torchvision.datasets.MNIST(root="./data", train=False, download=True, transform=transform)
-    # Create DataLoaders for training and validation datasets
-    trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
-    valloader = DataLoader(valset, batch_size=64, shuffle=False)
+    if dataset_name == 'MNIST':
+        trainset = torchvision.datasets.MNIST(root="./data", train=True, download=True, transform=transform)
+        # Load and transform the MNIST validation dataset
+        valset = torchvision.datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+        # Create DataLoaders for training and validation datasets
+    elif dataset_name == 'CIFAR10':
+        trainset = torchvision.datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
+        # Load and transform the CIFAR10 validation dataset
+        valset = torchvision.datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
+        # Create DataLoaders for training and validation datasets
+    else:
+        trainset = torchvision.datasets.CIFAR100(root="./data", train=True, download=True, transform=transform)
+        # Load and transform the CIFAR100 validation dataset
+        valset = torchvision.datasets.CIFAR100(root="./data", train=False, download=True, transform=transform)
+        # Create DataLoaders for training and validation datasets
+    trainloader = DataLoader(trainset, batch_size=256, shuffle=True)
+    valloader = DataLoader(valset, batch_size=256, shuffle=False)
 
-    # Initialize the KAN model with specified layer sizes
-    model = SimpleConvKANL([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=10, input_channels=1, degree=3, groups=4)
     # Determine the appropriate device based on GPU availability
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)  # Move the model to the selected device
@@ -132,7 +144,6 @@ def train_and_validate(epochs=15):
     train_accuracies, val_accuracies = trainer.fit(epochs)
 
     # Ensure the directory for saving models exists
-    model_save_dir = "./models"
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Save the trained model's state dictionary
@@ -146,7 +157,7 @@ def train_and_validate(epochs=15):
         f"Quantized Model - Validation Loss: {quantized_loss:.4f}, Validation Accuracy: {quantized_accuracy:.4f}, Evaluation Time: {quantized_time:.4f} seconds")
 
     # Evaluate the time taken to evaluate the original model
-    model.eval()
+    model.eval().to(device)
     start_time = time.time()
     with torch.no_grad():
         for images, labels in valloader:
@@ -159,6 +170,38 @@ def train_and_validate(epochs=15):
     print(f"Original Model Evaluation Time: {original_time:.4f} seconds")
     print(f"Train Accuracies: {train_accuracies}")
     print(f"Validation Accuracies: {val_accuracies}")
+    report = {"Validation Accuracies": val_accuracies, 'Train Accuracies': train_accuracies,
+              "Validation Accuracy - q": quantized_accuracy, 'Evaluation Time - q': quantized_time,
+              'Evaluation Time': original_time}
+    with open(os.path.join(model_save_dir, 'report.json'), 'w') as f:
+        json.dump(report, f)
 
 
-train_and_validate(epochs=40)  # Call the function to train and evaluate the model
+def get_kan_model(num_classes):
+    return SimpleConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=1,
+                         spline_order=3, groups=4)
+
+
+def get_kaln_model(num_classes):
+    return SimpleConvKALN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=1,
+                          degree=3, groups=4)
+
+
+def get_fast_kan_model(num_classes):
+    return SimpleFastConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=1,
+                             grid_size=8, groups=4)
+
+
+if __name__ == '__main__':
+    for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
+        for model_name in ['KAN', "KALN", "FastKAN"]:
+            folder_to_save = os.path.join('experiments', '_'.join([model_name.lower(), dataset_name.lower()]))
+            num_classes = 100 if dataset_name == 'CIFAR100' else 10
+            if model_name == 'KAN':
+                kan_model = get_kan_model(num_classes)
+            elif model_name == 'KALN':
+                kan_model = get_kaln_model(num_classes)
+            else:
+                kan_model = get_fast_kan_model(num_classes)
+            train_and_validate(kan_model, epochs=1,
+                               dataset_name='MNIST', model_save_dir=folder_to_save)  # Call the function to train and evaluate the model

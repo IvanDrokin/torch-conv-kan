@@ -1,23 +1,30 @@
 # TorchConv KAN: A Convolutional KAN & KAL Net: Kolmogorov Arnold Legendre Network
 
-This project introduces and demonstrates the training, validation, and quantization of the Convolutional KAN model using PyTorch with CUDA acceleration. The `torch-conv-kan` evaluates performance on the MNIST dataset.
+This project introduces and demonstrates the training, validation, and quantization of the Convolutional KAN model using PyTorch with CUDA acceleration. The `torch-conv-kan` evaluates performance on the MNIST and CIFAR datasets.
 
 ## Project Status: Under Development
 ### Roadmap
-- [ ] Convolutional KAN layers
+- [x] Convolutional KAN layers
 - [x] Convolutional KALN layers
+- [x] Convolutional Fast KAN layers
 - [ ] MNIST Benchmarks
+- [ ] CIFAR Benchmarks
 
 ---
 
 ## Introducing Convolutional KAN & KALN models
 
-The `KALNConv1DLayer`, `KALNConv2DLayer`, `KALNConv3DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Legendre Network, introduced in [1]. Baseline model implemented in `conv_kaln/conv_kanl_baseline.py`.
+- The `KANConv1DLayer`, `KANConv2DLayer`, `KANConv3DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network, introduced in [1]. Baseline model implemented in `models/baselines/conv_kan_baseline.py`.
+
+- The `KALNConv1DLayer`, `KALNConv2DLayer`, `KALNConv3DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Legendre Network, introduced in [2]. Baseline model implemented in `models/baselines/conv_kaln_baseline.py`.
+
+- The `FastKANConv1DLayer`, `FastKANConv2DLayer`, `FastKANConv3DLayer` classes represents a convolutional layers based on Fast Kolmogorov Arnold Network, introduced in [3]. Baseline model implemented in `models/baselines/fast_conv_kan_baseline.py`.
+
 
 KAN-like convolutions are coming later.
 
 ## Performance Metrics
-- **Accuracy:** `SimpleConvKANL` achieved an impressive **99.31% accuracy on the MNIST dataset**, demonstrating its capability to handle complex patterns in image data.
+- **Accuracy:** `SimpleConvKALN` achieved an impressive **99.31% accuracy on the MNIST dataset**, demonstrating its capability to handle complex patterns in image data.
 - More benchmarks are coming soon.
 
 ## Prerequisites
@@ -31,9 +38,9 @@ Ensure you have the following installed on your system:
 ## Usage
 
 ```python
-mnist_conv_kaln.py
+python mnist_conv.py
 ```
-This script will train the model, validate it, quantise and log performance metrics using wandb.
+This script will train the model, validate it, quantise and log performance metrics.
 
 ## Cite this Project
 
@@ -56,12 +63,13 @@ Contributions are welcome. Please raise issues as necessary.
 
 ## Acknowledgements
 
-This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), and we would like to sya thanks for their open research and exploration.
+This repository based on [TorchKAN](https://github.com/1ssb/torchkan/) and [FastKAN](https://github.com/ZiyaoLi/fast-kan) , and we would like to say thanks for their open research and exploration.
 
 
 ## References
 
-- [1] https://github.com/1ssb/torchkan
-- [2] Ziming Liu et al., "KAN: Kolmogorov-Arnold Networks", 2024, arXiv. https://arxiv.org/abs/2404.19756
-- [3] https://github.com/KindXiaoming/pykan
-- [4] https://github.com/Blealtan/efficient-kan
+- [1] Ziming Liu et al., "KAN: Kolmogorov-Arnold Networks", 2024, arXiv. https://arxiv.org/abs/2404.19756
+- [2] https://github.com/1ssb/torchkan
+- [3] https://github.com/ZiyaoLi/fast-kan  
+- [4] https://github.com/KindXiaoming/pykan
+- [5] https://github.com/Blealtan/efficient-kan
