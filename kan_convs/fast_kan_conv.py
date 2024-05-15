@@ -128,10 +128,3 @@ class FastKANConv1DLayer(FastKANConvNDLayer):
                                                  ndim=1,
                                                  grid_size=grid_size, base_activation=base_activation,
                                                  grid_range=grid_range)
-
-
-if __name__ == '__main__':
-    t = torch.rand((4, 12, 28, 28))
-    conv = FastKANConv2DLayer(12, 24, 3)
-    out = conv(t)
-    print(t.shape)

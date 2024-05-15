@@ -105,7 +105,7 @@ class KALNConvNDLayer(nn.Module):
 
 
 class KALNConv3DLayer(KALNConvNDLayer):
-    def __init__(self, input_dim, output_dim, degree, kernel_size, groups=1, padding=0, stride=1, dilation=1):
+    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1):
         super(KALNConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d, conv3d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
@@ -114,7 +114,7 @@ class KALNConv3DLayer(KALNConvNDLayer):
 
 
 class KALNConv2DLayer(KALNConvNDLayer):
-    def __init__(self, input_dim, output_dim, degree, kernel_size, groups=1, padding=0, stride=1, dilation=1):
+    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1):
         super(KALNConv2DLayer, self).__init__(nn.Conv2d, nn.InstanceNorm2d, conv2d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
@@ -123,7 +123,7 @@ class KALNConv2DLayer(KALNConvNDLayer):
 
 
 class KALNConv1DLayer(KALNConvNDLayer):
-    def __init__(self, input_dim, output_dim, degree, kernel_size, groups=1, padding=0, stride=1, dilation=1):
+    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1):
         super(KALNConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d, conv1d,
                                               input_dim, output_dim,
                                               degree, kernel_size,

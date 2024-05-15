@@ -101,7 +101,7 @@ class KANConvNDLayer(nn.Module):
 
 
 class KANConv3DLayer(KANConvNDLayer):
-    def __init__(self, input_dim, output_dim, spline_order, kernel_size, groups=1, padding=0, stride=1, dilation=1,
+    def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
                  grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1]):
         super(KANConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d,
                                              input_dim, output_dim,
@@ -113,7 +113,7 @@ class KANConv3DLayer(KANConvNDLayer):
 
 
 class KANConv2DLayer(KANConvNDLayer):
-    def __init__(self, input_dim, output_dim, spline_order, kernel_size, groups=1, padding=0, stride=1, dilation=1,
+    def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
                  grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1]):
         super(KANConv2DLayer, self).__init__(nn.Conv2d, nn.InstanceNorm2d,
                                              input_dim, output_dim,
@@ -125,7 +125,7 @@ class KANConv2DLayer(KANConvNDLayer):
 
 
 class KANConv1DLayer(KANConvNDLayer):
-    def __init__(self, input_dim, output_dim, spline_order, kernel_size, groups=1, padding=0, stride=1, dilation=1,
+    def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
                  grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1]):
         super(KANConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d,
                                              input_dim, output_dim,
