@@ -27,8 +27,10 @@ model:
   width_scale: 1
   dropout: 0.15
   dropout_linear: 0.25
+  l1_decay: 5e-5
   l2_activation_penalty: 5e-6
   l1_activation_penalty: 5e-6
+  num_classes: 200
 
 optim:
   learning_rate: 5e-4
@@ -42,7 +44,7 @@ optim:
   set_grads_to_none: false
 
 wandb:
-  entity: 'add your entitygit'
+  entity: 'add your entity'
   project_name: 'tiny-imagenet-kan-convs'
 
 loss:

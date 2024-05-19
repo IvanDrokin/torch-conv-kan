@@ -9,3 +9,4 @@ hydra-core
 datasets
 pillow
 torchsummary
+torchmetrics

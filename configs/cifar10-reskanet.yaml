@@ -1,12 +1,12 @@
 # @package _global_
-output_dir: "./runs/cifar10-reskalnet/"
-logging_dir: "./runs/cifar10-reskalnet/train_logs/"
+output_dir: "./runs/cifar10-reskalnet-r/"
+logging_dir: "./runs/cifar10-reskalnet-r/train_logs/"
 model_name: "reskalnet18_32p_cifar10"
 gradient_accumulation_steps: 1
 mixed_precision: 'no'
-epochs: 75
-train_batch_size: 96
-val_batch_size: 96
+epochs: 150
+train_batch_size: 128
+val_batch_size: 128
 dataloader_num_workers: 22
 seed: 42
 
@@ -23,10 +23,14 @@ metrics:
 
 model:
   groups: 2
-  degree: 3
-  width_scale: 2
-  l2_activation_penalty: 1e-5
+  degree: 4
+  width_scale: 4
+  dropout: 0.15
+  dropout_linear: 0.25
+  l1_decay: 5e-5
+  l2_activation_penalty: 5e-6
   l1_activation_penalty: 1e-6
+  num_classes: 10
 
 optim:
   learning_rate: 1e-4
@@ -34,7 +38,7 @@ optim:
   adam_beta2: 0.999
   adam_weight_decay: 1e-4
   adam_epsilon: 1e-8
-  lr_warmup_steps: 10
+  lr_warmup_steps: 1000
   lr_power: 1
   lr_end: 1e-7
   set_grads_to_none: false

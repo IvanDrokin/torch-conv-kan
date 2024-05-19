@@ -3,6 +3,7 @@ from typing import Callable, List, Optional, Type, Union
 
 import torch.nn as nn
 from torch import Tensor, flatten
+from .utils import L1
 
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer
 from kan_convs import MoEKALNConv2DLayer
@@ -10,9 +11,10 @@ from kan_convs import MoEKALNConv2DLayer
 
 def kan_conv3x3(in_planes: int, out_planes: int, spline_order: int = 3, groups: int = 1, stride: int = 1,
                 dilation: int = 1, grid_size: int = 5, base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                grid_range: List = [-1, 1]) -> KANConv2DLayer:
+                grid_range: List = [-1, 1], l1_decay: float = 0.0) -> KANConv2DLayer:
     """3x3 convolution with padding"""
-    return KANConv2DLayer(
+
+    conv = KANConv2DLayer(
         in_planes,
         out_planes,
         kernel_size=3,
@@ -25,25 +27,32 @@ def kan_conv3x3(in_planes: int, out_planes: int, spline_order: int = 3, groups: 
         base_activation=base_activation,
         grid_range=grid_range
     )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def kan_conv1x1(in_planes: int, out_planes: int, spline_order: int = 3, stride: int = 1,
                 grid_size: int = 5, base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                grid_range: List = [-1, 1]) -> KANConv2DLayer:
+                grid_range: List = [-1, 1], l1_decay: float = 0.0) -> KANConv2DLayer:
     """1x1 convolution"""
-    return KANConv2DLayer(in_planes, out_planes,
+    conv = KANConv2DLayer(in_planes, out_planes,
                           kernel_size=1,
                           spline_order=spline_order,
                           stride=stride,
                           grid_size=grid_size,
                           base_activation=base_activation,
                           grid_range=grid_range)
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def kaln_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
-                 dilation: int = 1, dropout: float = 0.0, norm_layer = nn.InstanceNorm2d) -> KALNConv2DLayer:
+                 dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                 l1_decay: float = 0.0) -> KALNConv2DLayer:
     """3x3 convolution with padding"""
-    return KALNConv2DLayer(
+    conv = KALNConv2DLayer(
         in_planes,
         out_planes,
         degree=degree,
@@ -55,13 +64,17 @@ def kaln_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int =
         dropout=dropout,
         norm_layer=norm_layer
     )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def moe_kaln_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
                      dilation: int = 1, num_experts: int = 8,
-                     noisy_gating: bool = True, k: int = 2, dropout: float = 0.0) -> MoEKALNConv2DLayer:
+                     noisy_gating: bool = True, k: int = 2, dropout: float = 0.0,
+                     l1_decay: float = 0.0) -> MoEKALNConv2DLayer:
     """3x3 convolution with padding"""
-    return MoEKALNConv2DLayer(
+    conv = MoEKALNConv2DLayer(
         in_planes,
         out_planes,
         degree=degree,
@@ -75,20 +88,26 @@ def moe_kaln_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: i
         k=k,
         dropout=dropout
     )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def kaln_conv1x1(in_planes: int, out_planes: int, degree: int = 3, stride: int = 1,
-                 dropout: float = 0.0, norm_layer = nn.InstanceNorm2d) -> KALNConv2DLayer:
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, l1_decay: float = 0.0) -> KALNConv2DLayer:
     """1x1 convolution"""
-    return KALNConv2DLayer(in_planes, out_planes, degree=degree,
+    conv = KALNConv2DLayer(in_planes, out_planes, degree=degree,
                            kernel_size=1,
                            stride=stride, dropout=dropout, norm_layer=norm_layer)
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def kacn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
-                 dilation: int = 1) -> KACNConv2DLayer:
+                 dilation: int = 1, l1_decay: float = 0.0) -> KACNConv2DLayer:
     """3x3 convolution with padding"""
-    return KACNConv2DLayer(
+    conv = KACNConv2DLayer(
         in_planes,
         out_planes,
         kernel_size=3,
@@ -98,21 +117,28 @@ def kacn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int =
         dilation=dilation,
         groups=groups
     )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
-def kacn_conv1x1(in_planes: int, out_planes: int, degree: int = 3, stride: int = 1) -> KACNConv2DLayer:
+def kacn_conv1x1(in_planes: int, out_planes: int, degree: int = 3, stride: int = 1,
+                 l1_decay: float = 0.0) -> KACNConv2DLayer:
     """1x1 convolution"""
-    return KACNConv2DLayer(in_planes, out_planes,
+    conv = KACNConv2DLayer(in_planes, out_planes,
                            kernel_size=1,
                            degree=degree,
                            stride=stride)
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def fast_kan_conv3x3(in_planes: int, out_planes: int, groups: int = 1, stride: int = 1,
                      dilation: int = 1, grid_size=8, base_activation=nn.SiLU,
-                     grid_range=[-2, 2]) -> FastKANConv2DLayer:
+                     grid_range=[-2, 2], l1_decay: float = 0.0) -> FastKANConv2DLayer:
     """3x3 convolution with padding"""
-    return FastKANConv2DLayer(
+    conv = FastKANConv2DLayer(
         in_planes,
         out_planes,
         kernel_size=3,
@@ -124,18 +150,25 @@ def fast_kan_conv3x3(in_planes: int, out_planes: int, groups: int = 1, stride: i
         base_activation=base_activation,
         grid_range=grid_range
     )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 def fast_kan_conv1x1(in_planes: int, out_planes: int, stride: int = 1,
-                     grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2]) -> FastKANConv2DLayer:
+                     grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2],
+                     l1_decay: float = 0.0) -> FastKANConv2DLayer:
     """1x1 convolution"""
-    return FastKANConv2DLayer(in_planes,
+    conv = FastKANConv2DLayer(in_planes,
                               out_planes,
                               kernel_size=1,
                               stride=stride,
                               grid_size=grid_size,
                               base_activation=base_activation,
                               grid_range=grid_range)
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
 
 
 class BasicBlockTemplate(nn.Module):
@@ -151,7 +184,7 @@ class BasicBlockTemplate(nn.Module):
             downsample: Optional[nn.Module] = None,
             groups: int = 1,
             base_width: int = 64,
-            dilation: int = 1
+            dilation: int = 1,
     ) -> None:
         super().__init__()
         if dilation > 1:
@@ -172,7 +205,7 @@ class BasicBlockTemplate(nn.Module):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
+        out = out + identity
 
         return out
 
@@ -188,11 +221,16 @@ class KANBasicBlock(BasicBlockTemplate):
                  downsample: Optional[nn.Module] = None,
                  groups: int = 1,
                  base_width: int = 64,
-                 dilation: int = 1, ):
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0
+                 ):
         conv1x1x1_fun = partial(kan_conv1x1, spline_order=spline_order, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range,
+                                dropout=dropout, l1_decay=l1_decay)
         conv3x3x3_fun = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range,
+                                dropout=dropout, l1_decay=l1_decay)
 
         super(KANBasicBlock, self).__init__(conv1x1x1_fun,
                                             conv3x3x3_fun,
@@ -216,11 +254,15 @@ class FastKANBasicBlock(BasicBlockTemplate):
                  downsample: Optional[nn.Module] = None,
                  groups: int = 1,
                  base_width: int = 64,
-                 dilation: int = 1, ):
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
         conv1x1x1_fun = partial(fast_kan_conv1x1, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range,
+                                l1_decay=l1_decay, dropout=dropout)
         conv3x3x3_fun = partial(fast_kan_conv3x3, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range,
+                                l1_decay=l1_decay, dropout=dropout)
 
         super(FastKANBasicBlock, self).__init__(conv1x1x1_fun,
                                                 conv3x3x3_fun,
@@ -243,9 +285,10 @@ class KALNBasicBlock(BasicBlockTemplate):
                  groups: int = 1,
                  base_width: int = 64,
                  dilation: int = 1,
-                 dropout: float = 0.0):
-        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout)
-        conv3x3x3_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout)
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
+        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay)
+        conv3x3x3_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay)
 
         super(KALNBasicBlock, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
@@ -267,9 +310,11 @@ class KACNBasicBlock(BasicBlockTemplate):
                  downsample: Optional[nn.Module] = None,
                  groups: int = 1,
                  base_width: int = 64,
-                 dilation: int = 1, ):
-        conv1x1x1_fun = partial(kacn_conv1x1, degree=degree)
-        conv3x3x3_fun = partial(kacn_conv3x3, degree=degree)
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
+        conv1x1x1_fun = partial(kacn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay)
+        conv3x3x3_fun = partial(kacn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay)
 
         super(KACNBasicBlock, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
@@ -327,7 +372,7 @@ class BottleneckTemplate(nn.Module):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
+        out = out + identity
         return out
 
 
@@ -342,11 +387,15 @@ class KANBottleneck(BottleneckTemplate):
                  downsample: Optional[nn.Module] = None,
                  groups: int = 1,
                  base_width: int = 64,
-                 dilation: int = 1, ):
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
         conv1x1x1_fun = partial(kan_conv1x1, spline_order=spline_order, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range, dropout=dropout,
+                                l1_decay=l1_decay)
         conv3x3x3_fun = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range, dropout=dropout,
+                                l1_decay=l1_decay)
 
         super(KANBottleneck, self).__init__(conv1x1x1_fun,
                                             conv3x3x3_fun,
@@ -370,11 +419,15 @@ class FastKANBottleneck(BottleneckTemplate):
                  downsample: Optional[nn.Module] = None,
                  groups: int = 1,
                  base_width: int = 64,
-                 dilation: int = 1, ):
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
         conv1x1x1_fun = partial(fast_kan_conv1x1, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range, dropout=dropout,
+                                l1_decay=l1_decay)
         conv3x3x3_fun = partial(fast_kan_conv3x3, grid_size=grid_size,
-                                base_activation=base_activation, grid_range=grid_range)
+                                base_activation=base_activation, grid_range=grid_range, dropout=dropout,
+                                l1_decay=l1_decay)
 
         super(FastKANBottleneck, self).__init__(conv1x1x1_fun,
                                                 conv3x3x3_fun,
@@ -397,9 +450,10 @@ class KALNBottleneck(BottleneckTemplate):
                  groups: int = 1,
                  base_width: int = 64,
                  dilation: int = 1,
-                 dropout: float = 0.0):
-        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout)
-        conv3x3x3_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout)
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
+        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay)
+        conv3x3x3_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay)
 
         super(KALNBottleneck, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
@@ -425,11 +479,12 @@ class MoEKALNBottleneck(BottleneckTemplate):
                  num_experts: int = 8,
                  noisy_gating: bool = True,
                  k: int = 2,
-                 dropout: float = 0.0
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0
                  ):
-        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout)
+        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay)
         conv3x3x3_fun = partial(moe_kaln_conv3x3, degree=degree, num_experts=num_experts,
-                                k=k, noisy_gating=noisy_gating, dropout=dropout)
+                                k=k, noisy_gating=noisy_gating, dropout=dropout, l1_decay=l1_decay)
 
         super(MoEKALNBottleneck, self).__init__(conv1x1x1_fun,
                                                 conv3x3x3_fun,
@@ -453,7 +508,7 @@ class MoEKALNBottleneck(BottleneckTemplate):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
+        out = out + identity
 
         return out, moe_loss
 
@@ -470,10 +525,12 @@ class MoEKALNBasicBlock(BasicBlockTemplate):
                  dilation: int = 1,
                  num_experts: int = 8,
                  noisy_gating: bool = True,
-                 k: int = 2):
-        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree)
+                 k: int = 2,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
+        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay)
         conv3x3x3_fun = partial(moe_kaln_conv3x3, degree=degree, num_experts=num_experts,
-                                k=k, noisy_gating=noisy_gating)
+                                k=k, noisy_gating=noisy_gating, dropout=dropout, l1_decay=l1_decay)
 
         super(MoEKALNBasicBlock, self).__init__(conv1x1x1_fun,
                                                 conv3x3x3_fun,
@@ -495,7 +552,7 @@ class MoEKALNBasicBlock(BasicBlockTemplate):
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out += identity
+        out = out + identity
 
         return out, moe_loss
 
@@ -509,9 +566,11 @@ class KACNBottleneck(BottleneckTemplate):
                  downsample: Optional[nn.Module] = None,
                  groups: int = 1,
                  base_width: int = 64,
-                 dilation: int = 1, ):
-        conv1x1x1_fun = partial(kacn_conv1x1, degree=degree)
-        conv3x3x3_fun = partial(kacn_conv3x3, degree=degree)
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0):
+        conv1x1x1_fun = partial(kacn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay)
+        conv3x3x3_fun = partial(kacn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay)
 
         super(KACNBottleneck, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
@@ -564,26 +623,30 @@ class ResKANet(nn.Module):
 
         self.hidden_layer = None
 
+        kan_kwargs_clean = kan_kwargs.copy()
+        kan_kwargs_clean.pop('l1_decay', None)
+
         if block in (KANBasicBlock, KANBottleneck):
             self.conv1 = KANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size, stride=fcnv_stride,
-                                        padding=fcnv_padding, **kan_kwargs)
+                                        padding=fcnv_padding, **kan_kwargs_clean)
             if hidden_layer_dim is not None:
                 self.hidden_layer = kan_conv1x1(128 * width_scale * block.expansion, hidden_layer_dim, **kan_kwargs)
 
         elif block in (FastKANBasicBlock, FastKANBottleneck):
             self.conv1 = FastKANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                            stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                            stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
             if hidden_layer_dim is not None:
                 self.hidden_layer = fast_kan_conv1x1(128 * width_scale * block.expansion, hidden_layer_dim,
                                                      **kan_kwargs)
         elif block in (KALNBasicBlock, KALNBottleneck):
             self.conv1 = KALNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
             if hidden_layer_dim is not None:
-                self.hidden_layer = kaln_conv1x1(128 * width_scale * block.expansion, hidden_layer_dim, norm_layer=nn.LayerNorm, **kan_kwargs)
+                self.hidden_layer = kaln_conv1x1(128 * width_scale * block.expansion, hidden_layer_dim,
+                                                 norm_layer=nn.LayerNorm, **kan_kwargs)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
             if hidden_layer_dim is not None:
                 self.hidden_layer = kacn_conv1x1(128 * width_scale * block.expansion, hidden_layer_dim, **kan_kwargs)
         else:
@@ -723,9 +786,11 @@ class MoEResKANet(nn.Module):
 
         self.hidden_layer = None
 
+        kan_kwargs_clean = kan_kwargs.copy()
+        kan_kwargs_clean.pop('l1_decay', None)
         if block in (MoEKALNBottleneck, MoEKALNBasicBlock):
             self.conv1 = KALNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
             if hidden_layer_dim is not None:
                 self.hidden_layer = kaln_conv1x1(128 * width_scale * block.expansion, hidden_layer_dim, **kan_kwargs)
         else:
@@ -838,7 +903,8 @@ class MoEResKANet(nn.Module):
 
 def reskanet_18x32p(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
                     base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                    grid_range: List = [-1, 1], hidden_layer_dim=None):
+                    grid_range: List = [-1, 1], hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0,
+                    dropout_linear: float = 0.25):
     return ResKANet(KANBasicBlock, [2, 2, 2, 2],
                     input_channels=input_channels,
                     use_first_maxpool=False,
@@ -852,7 +918,8 @@ def reskanet_18x32p(input_channels, num_classes, groups: int = 1, spline_order: 
 
 def fast_reskanet_18x32p(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                          base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                         grid_range: List = [-1, 1], hidden_layer_dim=None):
+                         grid_range: List = [-1, 1], hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0,
+                         dropout_linear: float = 0.25):
     return ResKANet(FastKANBasicBlock, [2, 2, 2, 2],
                     input_channels=input_channels,
                     use_first_maxpool=False,
@@ -865,7 +932,7 @@ def fast_reskanet_18x32p(input_channels, num_classes, groups: int = 1, grid_size
 
 
 def reskalnet_18x32p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                     hidden_layer_dim=None):
+                     hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0, dropout_linear: float = 0.25):
     return ResKANet(KALNBasicBlock, [2, 2, 2, 2],
                     input_channels=input_channels,
                     use_first_maxpool=False,
@@ -874,11 +941,15 @@ def reskalnet_18x32p(input_channels, num_classes, groups: int = 1, degree: int =
                     groups=groups,
                     width_per_group=64,
                     degree=degree,
-                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim)
+                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay
+                    )
 
 
 def reskalnet_18x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                     hidden_layer_dim=None):
+                     hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0, dropout_linear: float = 0.25):
     return ResKANet(KALNBasicBlock, [2, 2, 2, 2],
                     input_channels=input_channels,
                     use_first_maxpool=True,
@@ -888,13 +959,17 @@ def reskalnet_18x64p(input_channels, num_classes, groups: int = 1, degree: int =
                     width_per_group=64,
                     degree=degree,
                     width_scale=width_scale,
-                    hidden_layer_dim=hidden_layer_dim
+                    hidden_layer_dim=hidden_layer_dim,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay
                     )
 
 
 def moe_reskalnet_18x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                          num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
-                         hidden_layer_dim=None):
+                         hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0,
+                         dropout_linear: float = 0.25):
     return MoEResKANet(MoEKALNBasicBlock, [2, 2, 2, 2],
                        input_channels=input_channels,
                        use_first_maxpool=True,
@@ -906,11 +981,14 @@ def moe_reskalnet_18x64p(input_channels, num_classes, groups: int = 1, degree: i
                        width_scale=width_scale,
                        num_experts=num_experts,
                        noisy_gating=noisy_gating,
-                       k=k, hidden_layer_dim=hidden_layer_dim)
+                       k=k, hidden_layer_dim=hidden_layer_dim,
+                       dropout=dropout,
+                       dropout_linear=dropout_linear,
+                       l1_decay=l1_decay)
 
 
 def reskacnet_18x32p(input_channels, num_classes, groups: int = 1, degree: int = 3,
-                     hidden_layer_dim=None):
+                     hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0, dropout_linear: float = 0.25):
     return ResKANet(KACNBasicBlock, [2, 2, 2, 2],
                     input_channels=input_channels,
                     use_first_maxpool=False,
@@ -918,11 +996,14 @@ def reskacnet_18x32p(input_channels, num_classes, groups: int = 1, degree: int =
                     num_classes=num_classes,
                     groups=groups,
                     width_per_group=64,
-                    degree=degree, hidden_layer_dim=hidden_layer_dim)
+                    degree=degree, hidden_layer_dim=hidden_layer_dim,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay)
 
 
 def reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                     dropout: float = 0.15, dropout_linear: float = 0.25,
+                     dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
                      hidden_layer_dim=None):
     return ResKANet(KALNBottleneck, [3, 4, 6, 3],
                     input_channels=input_channels,
@@ -934,12 +1015,15 @@ def reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: int =
                     degree=degree,
                     width_scale=width_scale,
                     dropout=dropout,
-                    dropout_linear=dropout_linear, hidden_layer_dim=hidden_layer_dim)
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay,
+                    hidden_layer_dim=hidden_layer_dim)
 
 
 def moe_reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                          num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
-                         hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25):
+                         hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25,
+                         l1_decay: float = 0.0):
     return MoEResKANet(MoEKALNBottleneck, [3, 4, 6, 3],
                        input_channels=input_channels,
                        use_first_maxpool=True,
@@ -953,12 +1037,14 @@ def moe_reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: i
                        noisy_gating=noisy_gating,
                        k=k, hidden_layer_dim=hidden_layer_dim,
                        dropout=dropout,
-                       dropout_linear=dropout_linear
+                       dropout_linear=dropout_linear,
+                       l1_decay=l1_decay
                        )
 
 
 def reskalnet_101x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                      hidden_layer_dim=None):
+                      hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25,
+                      l1_decay: float = 0.0):
     return ResKANet(KALNBottleneck, [3, 4, 23, 3],
                     input_channels=input_channels,
                     use_first_maxpool=True,
@@ -967,12 +1053,16 @@ def reskalnet_101x64p(input_channels, num_classes, groups: int = 1, degree: int 
                     groups=groups,
                     width_per_group=64,
                     degree=degree,
-                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim)
+                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay)
 
 
 def moe_reskalnet_101x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                           num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
-                          hidden_layer_dim=None):
+                          hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25,
+                          l1_decay: float = 0.0):
     return MoEResKANet(MoEKALNBottleneck, [3, 4, 23, 3],
                        input_channels=input_channels,
                        use_first_maxpool=True,
@@ -984,12 +1074,16 @@ def moe_reskalnet_101x64p(input_channels, num_classes, groups: int = 1, degree: 
                        width_scale=width_scale,
                        num_experts=num_experts,
                        noisy_gating=noisy_gating,
-                       k=k, hidden_layer_dim=hidden_layer_dim
+                       k=k, hidden_layer_dim=hidden_layer_dim,
+                       dropout=dropout,
+                       dropout_linear=dropout_linear,
+                       l1_decay=l1_decay
                        )
 
 
 def reskalnet_152x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                      hidden_layer_dim=None):
+                      hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25,
+                      l1_decay: float = 0.0):
     return ResKANet(KALNBottleneck, [3, 8, 36, 3],
                     input_channels=input_channels,
                     use_first_maxpool=True,
@@ -998,12 +1092,16 @@ def reskalnet_152x64p(input_channels, num_classes, groups: int = 1, degree: int 
                     groups=groups,
                     width_per_group=64,
                     degree=degree,
-                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim)
+                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay)
 
 
 def moe_reskalnet_152x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                           num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
-                          hidden_layer_dim=None):
+                          hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25,
+                          l1_decay: float = 0.0):
     return MoEResKANet(MoEKALNBottleneck, [3, 8, 36, 3],
                        input_channels=input_channels,
                        use_first_maxpool=True,
@@ -1015,5 +1113,8 @@ def moe_reskalnet_152x64p(input_channels, num_classes, groups: int = 1, degree: 
                        width_scale=width_scale,
                        num_experts=num_experts,
                        noisy_gating=noisy_gating,
-                       k=k, hidden_layer_dim=hidden_layer_dim
+                       k=k, hidden_layer_dim=hidden_layer_dim,
+                       dropout=dropout,
+                       dropout_linear=dropout_linear,
+                       l1_decay=l1_decay
                        )

@@ -4,6 +4,7 @@ from torchvision.transforms import v2
 
 import hydra
 import torch.nn as nn
+from torchinfo import summary
 
 from train import train_model
 from models.reskanet import reskalnet_18x32p
@@ -31,7 +32,10 @@ def get_data():
 
 @hydra.main(version_base=None, config_path="./configs/", config_name="cifar10-reskanet.yaml")
 def main(cfg):
-    model = reskalnet_18x32p(3, 10, groups=cfg.model.groups, degree=cfg.model.degree, width_scale=cfg.model.width_scale)
+    model = reskalnet_18x32p(3, 10, groups=cfg.model.groups, degree=cfg.model.degree, width_scale=cfg.model.width_scale,
+                             dropout=cfg.model.dropout, l1_decay=cfg.model.l1_decay,
+                             dropout_linear=cfg.model.dropout_linear)
+    summary(model, (64, 3, 32, 32), device='cpu')
     dataset_train, dataset_test = get_data()
     loss_func = nn.CrossEntropyLoss(label_smoothing=cfg.loss.label_smoothing)
 
