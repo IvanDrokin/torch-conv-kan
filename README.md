@@ -10,6 +10,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/14] Convolutional KAN and Fast KAN layers are available
   
 - ✅ [2024/05/15] Convolutional ChebyKAN are available now. MNIST, CIFAR10 and CIFAR100 benchmarks are added.
+  
+- ✅ [2024/05/19] ResNet-like, U-net like and MoE-based (don't ask why=)) models released with accelerate-based training code.
 
 ### TODO list
 - [ ] Expand model zoo
@@ -18,7 +20,7 @@ This project introduces and demonstrates the training, validation, and quantizat
 
 ---
 
-## Introducing Convolutional KAN & KALN models
+## Introducing Convolutional KAN layers
 
 - The `KANConv1DLayer`, `KANConv2DLayer`, `KANConv3DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network, introduced in [1]. Baseline model implemented in `models/baselines/conv_kan_baseline.py`.
 
@@ -27,6 +29,22 @@ This project introduces and demonstrates the training, validation, and quantizat
 - The `FastKANConv1DLayer`, `FastKANConv2DLayer`, `FastKANConv3DLayer` classes represents a convolutional layers based on Fast Kolmogorov Arnold Network, introduced in [3]. Baseline model implemented in `models/baselines/fast_conv_kan_baseline.py`.
 
 - The `KACNConv1DLayer`, `KACNConv1DLayer`, `KACNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Chebyshev polynomials insted of B-splines, introduced in [4]. Baseline model implemented in `models/baselines/conv_kacn_baseline.py`.
+
+## Model Zoo
+
+### ResKANets
+
+We introduce ResKANets - an ResNet-like model with KAN convolutions instead of regular one. Main class ```ResKANet``` could be found ```models/reskanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN and KACN convolutional layers.
+
+After 75 training epochs on CIFAR10 ResKANet 18 with Kolmogorov Arnold Legendre convolutions achieved 84.17% accuracy and 0.985 AUC (OVO).
+
+After 75 training epochs on Tiny Imagenet ResKANet 18 with Kolmogorov Arnold Legendre convolutions achieved 28.62% accuracy, 55.49% top-5 accuracy, and 0.932 AUC (OVO).
+
+Please, take into account that this is preliminary results and more experiments are in progress right now.
+
+### UKANet
+
+We introduce UKANets - an U-net like model with KAN convolutions instead of regular one, based on resnet blocks. Main class ```UKANet``` could be found ```models/ukanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN and KACN convolutional layers.
 
 ## Performance Metrics
 
@@ -168,6 +186,66 @@ To run the training and testing of the baseline models on the MNIST, CIFAR-10, a
 ```python mnist_conv.py```
 
 This script will train baseline models on MNIST, CIFAR10 or CIFAR100, validate them, quantise and log performance metrics.
+
+### Accelerate-based training
+
+We introduce training code with Accelerate, Hydra configs and Wandb logging. 
+
+#### 1. Clone the Repository
+
+Clone the `torch-conv-kan` repository and set up the project environment:
+
+```bash
+git clone https://github.com/IvanDrokin/torch-conv-kan.git
+cd torch-conv-kan
+pip install -r requirements.txt
+```
+
+#### 2. Configure Weights & Biases (wandb)
+
+To monitor experiments and model performance with wandb:
+
+1. **Set Up wandb Account:**
+
+- Sign up or log in at [Weights & Biases](https://wandb.ai).
+- Locate your API key in your account settings.
+
+2. **Initialize wandb in Your Project:**
+
+Before running the training script, initialize wandb:
+
+```python
+wandb login
+```
+
+Enter your API key when prompted to link your script executions to your wandb account.
+
+3. **Adjust the Entity Name in `configs/cifar10-reskanet.yaml` or `configs/tiny-imagenet-reskanet.yaml` to Your Username or Team Name**
+
+#### Run
+
+Update any parameters in configs and run
+
+```python
+accelerate launch cifar.py
+```
+
+This script trains the model, validates it, and logs performance metrics using wandb on CIFAR10 dataset.
+
+```python
+accelerate launch tiny_imagenet.py
+```
+
+This script trains the model, validates it, and logs performance metrics using wandb on Tiny Imagenet dataset.
+
+### Using your own dataset or model
+
+If you would like to use your own dataset, please follow this steps:
+
+1. Copy ```tiny_imagenet.py``` and modify ```get_data()``` method. If basic implementation of Classification dataset is not suitable for your data - please, upgrade it or write your own one.
+2. Replace ```model = reskalnet_18x64p(...)``` with your own one if necessary.
+3. Create config yaml in ```config``` forlders, following provided templates.
+4. Run ```accelerate launch your_script.py```
 
 ## Cite this Project
 

@@ -1,3 +1,11 @@
 torch
 torchvision
 tqdm
+accelerate
+wandb
+scikit-learn
+omegaconf
+hydra-core
+datasets
+pillow
+torchsummary
