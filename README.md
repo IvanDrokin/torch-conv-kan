@@ -21,7 +21,7 @@ This project introduces and demonstrates the training, validation, and quantizat
 - [ ] Perform hyperparameters optimisation
 
 ---
-##Table of content:
+## Table of content:
  - [Convolutional KAN layers](#item-one)
  - [Model Zoo](#item-two)
  - [Performance Metrics](#item-three)
