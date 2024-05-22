@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from torchmetrics.classification import Accuracy
 from tqdm.auto import tqdm
 
-from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer
+from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer
 from .metrics import get_metrics
 
 logger = get_logger(__name__)
@@ -81,7 +81,7 @@ def get_polynomial_decay_schedule_with_warmup(
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def train_model(model, dataset_train, dataset_test, loss_func, cfg):
+def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=None):
     logging_dir = Path(cfg.output_dir, cfg.logging_dir)
 
     accelerator_project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
@@ -150,11 +150,19 @@ def train_model(model, dataset_train, dataset_test, loss_func, cfg):
         num_workers=cfg.dataloader_num_workers,
     )
     val_dataloader = torch.utils.data.DataLoader(
-        dataset_test,
+        dataset_val,
         shuffle=False,
         batch_size=cfg.val_batch_size,
         num_workers=cfg.dataloader_num_workers,
     )
+    test_dataloader = None
+    if dataset_test is not None:
+        test_dataloader = torch.utils.data.DataLoader(
+            dataset_test,
+            shuffle=False,
+            batch_size=cfg.val_batch_size,
+            num_workers=cfg.dataloader_num_workers,
+        )
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
@@ -174,7 +182,7 @@ def train_model(model, dataset_train, dataset_test, loss_func, cfg):
     # Prepare everything with our `accelerator`.
     output_hook = OutputHook()
     for module in model.named_modules():
-        if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer)):
+        if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer)):
             module.register_forward_hook(output_hook)
 
     metric_acc = Accuracy(task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
@@ -183,6 +191,8 @@ def train_model(model, dataset_train, dataset_test, loss_func, cfg):
     model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5 = accelerator.prepare(
         model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5
     )
+    if test_dataloader is not None:
+        test_dataloader = accelerator.prepare(test_dataloader)
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     cfg.max_train_steps = cfg.epochs * num_update_steps_per_epoch

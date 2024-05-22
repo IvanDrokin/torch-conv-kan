@@ -8,5 +8,6 @@ omegaconf
 hydra-core
 datasets
 pillow
-torchsummary
+torchinfo
 torchmetrics
+einops

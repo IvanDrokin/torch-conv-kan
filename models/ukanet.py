@@ -4,16 +4,16 @@ from typing import Callable, Optional, List, Type, Union
 import torch
 import torch.nn as nn
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer
+from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
 from .reskanet import KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KANBottleneck, \
-    FastKANBottleneck, KALNBottleneck, KACNBottleneck
-from .reskanet import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1
+    FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck, KAGNBasicBlock
+from .reskanet import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1
 
 
 class UKANet(nn.Module):
     def __init__(self,
-                 block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock,
-                                   KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck]],
+                 block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KAGNBasicBlock,
+                                   KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck]],
                  layers: List[int],
                  input_channels: int = 3,
                  num_classes: int = 1000,
@@ -68,6 +68,15 @@ class UKANet(nn.Module):
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
             self.merge3 = KALNConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
+        elif block in (KAGNBasicBlock, KAGNBottleneck):
+            self.conv1 = KAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
+                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+            self.merge1 = KAGNConv2DLayer((32 + 64) * block.expansion, 32 * block.expansion, kernel_size=3,
+                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+            self.merge2 = KAGNConv2DLayer((128 + 64) * block.expansion, 64 * block.expansion, kernel_size=3,
+                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+            self.merge3 = KAGNConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
+                                          groups=groups, stride=1, padding=1, **kan_kwargs)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
@@ -105,8 +114,8 @@ class UKANet(nn.Module):
 
     def _make_layer(
             self,
-            block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock,
-                              KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck]],
+            block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KAGNBasicBlock,
+                              KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck]],
             planes: int,
             blocks: int,
             stride: int = 1,
@@ -125,6 +134,8 @@ class UKANet(nn.Module):
                 conv1x1 = partial(fast_kan_conv1x1, **kan_kwargs)
             elif block in (KALNBasicBlock, KALNBottleneck):
                 conv1x1 = partial(kaln_conv1x1, **kan_kwargs)
+            elif block in (KAGNBasicBlock, KAGNBottleneck):
+                conv1x1 = partial(kagn_conv1x1, **kan_kwargs)
             elif block in (KACNBasicBlock, KACNBottleneck):
                 conv1x1 = partial(kacn_conv1x1, **kan_kwargs)
             else:
@@ -202,6 +213,16 @@ def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int 
 
 
 def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3):
+    return UKANet(KALNBasicBlock, [2, 2, 2, 2],
+                  input_channels=input_channels,
+                  fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
+                  num_classes=num_classes,
+                  groups=groups,
+                  width_per_group=64,
+                  degree=degree)
+
+
+def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,

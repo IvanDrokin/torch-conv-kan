@@ -12,14 +12,28 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/15] Convolutional ChebyKAN are available now. MNIST, CIFAR10 and CIFAR100 benchmarks are added.
   
 - ✅ [2024/05/19] ResNet-like, U-net like and MoE-based (don't ask why=)) models released with accelerate-based training code.
+  
+- ✅ [2024/05/21] VGG-like and DenseNet-like models released! Gram KAN convolutional layers added.
 
-### TODO list
-- [ ] Expand model zoo
+### TODO list and next steps
+- [ ] Expand model zoo 
 - [ ] Add more benchmarks
 - [ ] Perform hyperparameters optimisation
 
 ---
+##Table of content:
+ - [Convolutional KAN layers](#item-one)
+ - [Model Zoo](#item-two)
+ - [Performance Metrics](#item-three)
+ - [Discussion](#item-four)
+ - [Usage](#item-five)
+ - [Accelerate-based training](#item-six)
+ - [Contributions](#item-seven)
+ - [Acknowledgements](#item-eight)
+ - [References](#item-nine)
 
+
+<a id="item-one"></a>
 ## Introducing Convolutional KAN layers
 
 - The `KANConv1DLayer`, `KANConv2DLayer`, `KANConv3DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network, introduced in [1]. Baseline model implemented in `models/baselines/conv_kan_baseline.py`.
@@ -28,13 +42,16 @@ This project introduces and demonstrates the training, validation, and quantizat
 
 - The `FastKANConv1DLayer`, `FastKANConv2DLayer`, `FastKANConv3DLayer` classes represents a convolutional layers based on Fast Kolmogorov Arnold Network, introduced in [3]. Baseline model implemented in `models/baselines/fast_conv_kan_baseline.py`.
 
-- The `KACNConv1DLayer`, `KACNConv1DLayer`, `KACNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Chebyshev polynomials insted of B-splines, introduced in [4]. Baseline model implemented in `models/baselines/conv_kacn_baseline.py`.
+- The `KACNConv1DLayer`, `KACNConv1DLayer`, `KACNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Chebyshev polynomials instead of B-splines, introduced in [4]. Baseline model implemented in `models/baselines/conv_kacn_baseline.py`.
 
+- The `KAGNConv1DLayer`, `KAGNConv1DLayer`, `KAGNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Gram polynomials instead of B-splines, introduced in [5]. Baseline model implemented in `models/baselines/conv_kagn_baseline.py`.
+
+<a id="item-two"></a>
 ## Model Zoo
 
 ### ResKANets
 
-We introduce ResKANets - an ResNet-like model with KAN convolutions instead of regular one. Main class ```ResKANet``` could be found ```models/reskanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN and KACN convolutional layers.
+We introduce ResKANets - an ResNet-like model with KAN convolutions instead of regular one. Main class ```ResKANet``` could be found ```models/densekanet.py```. Our implementation supports blocks with KAN, Fast KAN, KALN, KAGN and KACN convolutional layers.
 
 After 75 training epochs on CIFAR10 ResKANet 18 with Kolmogorov Arnold Legendre convolutions achieved 84.17% accuracy and 0.985 AUC (OVO).
 
@@ -42,85 +59,29 @@ After 75 training epochs on Tiny Imagenet ResKANet 18 with Kolmogorov Arnold Leg
 
 Please, take into account that this is preliminary results and more experiments are in progress right now.
 
+### DenseKANets
+
+We introduce DenseKANets - an DenseNet-like model with KAN convolutions instead of regular one. Main class ```DenseKANet``` could be found ```models/reskanet.py```. Our implementation supports blocks with KAN, Fast KAN, KALN, KAGN and KACN convolutional layers.
+
+After 250 training epochs on Tiny Imagenet DenseNet 121 with Kolmogorov Arnold Gram convolutions achieved 40.61% accuracy, 65.08% top-5 accuracy, and 0.957 AUC (OVO).
+
+Please, take into account that this is preliminary results and more experiments are in progress right now.
+
+### VGGKAN
+
+We introduce VGGKANs - an VGG like models with KAN convolutions instead of regular one, based on resnet blocks. Main class ```VGG``` could be found ```models/vggkan.py```. 
+
+
 ### UKANet
 
-We introduce UKANets - an U-net like model with KAN convolutions instead of regular one, based on resnet blocks. Main class ```UKANet``` could be found ```models/ukanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN and KACN convolutional layers.
+We introduce UKANets - an U-net like model with KAN convolutions instead of regular one, based on resnet blocks. Main class ```UKANet``` could be found ```models/ukanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN, KAGC and KACN convolutional layers.
 
+<a id="item-three"></a>
 ## Performance Metrics
 
-Baseline models were chosen to be simple networks with 4 and 8 convolutional layers. To reduce dimensionality, convolutions with dilation=2 were used. In the 4-layer model, the second and third convolutions had dilation=2, while in the 8-layer model, the second, third, and sixth convolutions had dilation=2.
+[Baseline models on MNIST and CIFAR10/100](./reports/mnist_cifar_baseline.md)
 
-The number of channels in the convolutions was the same for all models:
-
-For 4 layers: 32, 64, 128, 512
-For 8 layers: 2, 64, 128, 512, 1024, 1024, 1024, 1024
-After the convolutions, Global Average Pooling was applied, followed by a linear output layer.
-
-In the case of classic convolutions, a traditional structure was used: convolution - batch normalization - ReLU.
-
-All experiments were conducted on an NVIDIA RTX 3090 with identical training parameters. For more details, please refer to the file ```mnist_conv.py```.
-
-### MNIST
-Accuracy on the training and validation MNIST datasets, 4 convolutional layer models
-![MNIST train and validation accuracy for 4 layer models](./assets/MNIST.png)
-
-Accuracy on the training and validation MNIST datasets, 8 convolutional layer models
-![MNIST train and validation accuracy for 8 layer models](./assets/MNIST_8.png)
-
-| Model                       | Val. Accuracy | Parameters | Eval Time, s |
-|-----------------------------|---------------|------------|--------------|
-| SimpleConv, 4 layers        | 98.94         | 178122     | 0.4017       |
-| SimpleKANConv, 4 layers     | **99.48**     | 1542199    | 1.7437       |
-| SimpleFastKANConv, 4 layers | 98.29         | 1542186    | 0.4558       |
-| SimpleKALNConv, 4 layers    | 99.40         | 859050     | 0.5085       |
-| SimpleKACNConv, 4 layers    | 97.54         | 689738     | 0.4225       |
-| SimpleConv, 8 layers        | 99.37         | 42151850   | 1.7582       |
-| SimpleKANConv, 8 layers     | 99.39         | 75865159   | 5.7914       |
-| SimpleFastKANConv, 8 layers | 99.09         | 75865130   | 2.4105       |
-| SimpleKALNConv, 8 layers    | 99.36         | 42151850   | 1.7582       |
-| SimpleKACNConv, 8 layers    | 99.22         | 33733194   | 0.8509       |
-
-### CIFAR10
-Accuracy on the training and validation CIFAR10 datasets, 4 convolutional layer models
-![CIFAR10 train and validation accuracy for 4 layer models](./assets/CIFAR10.png)
-
-Accuracy on the training and validation CIFAR10 datasets, 4 convolutional layer models
-![CIFAR10 train and validation accuracy for 8 layer models](./assets/CIFAR10_8.png)
-
-|           Model           |Val. Accuracy|Parameters|Eval Time, s|
-|---------------------------|-------------|----------|------------|
-|    SimpleConv, 4 layers   |    69.69    |  178698  |   0.5481   |
-|  SimpleKANConv, 4 layers  |    59.37    |  1547383 |   2.2969   |
-|SimpleFastKANConv, 4 layers|    57.39    |  1547370 |   0.6169   |
-|  SimpleKALNConv, 4 layers |    63.86    |  861930  |   0.6824   |
-|  SimpleKACNConv, 4 layers |    57.03    |  692042  |   0.5853   |
-|    SimpleConv, 8 layers   |  **76.08**  |  8453642 |   0.5647   |
-|  SimpleKANConv, 8 layers  |    64.62    | 75870343 |   7.0329   |
-|SimpleFastKANConv, 8 layers|    57.21    | 75870314 |   2.7723   |
-|  SimpleKALNConv, 8 layers |    66.77    | 42154730 |   1.9057   |
-|  SimpleKACNConv, 8 layers |    64.98    | 33735498 |   0.9085   |
-
-### CIFAR100
-Accuracy on the training and validation CIFAR100 datasets, 4 convolutional layer models
-![CIFAR100 train and validation accuracy for 4 layer models](./assets/CIFAR100.png)
-
-Accuracy on the training and validation CIFAR100 datasets, 8 convolutional layer models
-![CIFAR100 train and validation accuracy for 8 layer models](./assets/CIFAR100_8.png)
-
-|           Model           |Val. Accuracy|Parameters|Eval Time, s|
-|---------------------------|-------------|----------|------------|
-|    SimpleConv, 4 layers   |    38.99    |  224868  |   0.5533   |
-|  SimpleKANConv, 4 layers  |    20.53    |  1593553 |   2.3098   |
-|SimpleFastKANConv, 4 layers|    32.48    |  1593540 |   0.6175   |
-|  SimpleKALNConv, 4 layers |    22.36    |  908100  |   0.6540   |
-|  SimpleKACNConv, 4 layers |    34.17    |  738212  |   0.5820   |
-|    SimpleConv, 8 layers   |  **43.32**  |  8545892 |   0.5663   |
-|  SimpleKANConv, 8 layers  |    23.22    | 75962593 |   7.0452   |
-|SimpleFastKANConv, 8 layers|    23.75    | 75962564 |   2.7713   |
-|  SimpleKALNConv, 8 layers |    18.90    | 42246980 |   1.8955   |
-|  SimpleKACNConv, 8 layers |     0.98    | 33827748 |   0.9093   |
-
-
+<a id="item-four"></a>
 ## Discussion
 
 First and foremost, it should be noted that the results obtained are preliminary. The model architecture has not been thoroughly explored and represents only two of many possible design variants.
@@ -137,6 +98,7 @@ Ensure you have the following installed on your system:
 - CUDA Toolkit (corresponding to your PyTorch installation's CUDA version)
 - cuDNN (compatible with your installed CUDA Toolkit)
 
+<a id="item-five"></a>
 ## Usage
 
 Below is an example of a simple model based on KAN convolutions:
@@ -187,6 +149,7 @@ To run the training and testing of the baseline models on the MNIST, CIFAR-10, a
 
 This script will train baseline models on MNIST, CIFAR10 or CIFAR100, validate them, quantise and log performance metrics.
 
+<a id="item-six"></a>
 ### Accelerate-based training
 
 We introduce training code with Accelerate, Hydra configs and Wandb logging. 
@@ -261,21 +224,22 @@ If you use this project in your research or wish to refer to the baseline result
   howpublished = {\url{https://github.com/IvanDrokin/torch-conv-kan}}
 }
 ```
-
+<a id="item-seven"></a>
 ## Contributions
 
 Contributions are welcome. Please raise issues as necessary.
-
+<a id="item-eight"></a>
 ## Acknowledgements
 
-This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), and [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), and we would like to say thanks for their open research and exploration.
+This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), and [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN). and we would like to say thanks for their open research and exploration.
 
-
+<a id="item-nine"></a>
 ## References
 
 - [1] Ziming Liu et al., "KAN: Kolmogorov-Arnold Networks", 2024, arXiv. https://arxiv.org/abs/2404.19756
 - [2] https://github.com/1ssb/torchkan
 - [3] https://github.com/ZiyaoLi/fast-kan
-- [4] https://github.com/SynodicMonth/ChebyKAN  
-- [5] https://github.com/KindXiaoming/pykan
-- [6] https://github.com/Blealtan/efficient-kan
+- [4] https://github.com/SynodicMonth/ChebyKAN
+- [5] https://github.com/Khochawongwat/GRAMKAN  
+- [6] https://github.com/KindXiaoming/pykan
+- [7] https://github.com/Blealtan/efficient-kan

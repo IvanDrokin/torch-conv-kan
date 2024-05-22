@@ -9,6 +9,7 @@ from .fast_kan_conv import FastKANConv1DLayer, FastKANConv2DLayer, FastKANConv3D
 from .kacn_conv import KACNConv1DLayer, KACNConv2DLayer, KACNConv3DLayer
 from .kaln_conv import KALNConv1DLayer, KALNConv2DLayer, KALNConv3DLayer
 from .kan_conv import KANConv1DLayer, KANConv2DLayer, KANConv3DLayer
+from .kagn_conv import KAGNConv1DLayer, KAGNConv2DLayer, KAGNConv3DLayer
 
 
 class SparseDispatcher(object):
@@ -144,13 +145,13 @@ class MoEKANConvBase(nn.Module):
         self.softplus = nn.Softplus()
         self.softmax = nn.Softmax(1)
 
-        if conv_class in [KANConv1DLayer, FastKANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer]:
+        if conv_class in [KANConv1DLayer, FastKANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer, KAGNConv1DLayer]:
             self.avgpool = nn.AdaptiveAvgPool1d((1,))
             self.conv_dims = 1
-        elif conv_class in [KANConv2DLayer, FastKANConv2DLayer, KALNConv2DLayer, KACNConv2DLayer]:
+        elif conv_class in [KANConv2DLayer, FastKANConv2DLayer, KALNConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer]:
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
             self.conv_dims = 2
-        elif conv_class in [KANConv3DLayer, FastKANConv3DLayer, KALNConv3DLayer, KACNConv3DLayer]:
+        elif conv_class in [KANConv3DLayer, FastKANConv3DLayer, KALNConv3DLayer, KACNConv3DLayer, KAGNConv3DLayer]:
             self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
             self.conv_dims = 3
 
@@ -313,6 +314,30 @@ class MoEKANConv2DLayer(MoEKANConvBase):
         super(MoEKANConv2DLayer, self).__init__(KANConv2DLayer, input_size, output_size, num_experts=num_experts,
                                                 noisy_gating=noisy_gating, k=k,
                                                 kernel_size=kernel_size, stride=stride, padding=padding, **kan_kwargs)
+
+
+class MoEKAGNConv1DLayer(MoEKANConvBase):
+    def __init__(self, input_size, output_size, num_experts=16, noisy_gating=True, k=4,
+                 kernel_size=3, stride=1, padding=1, **kan_kwargs):
+        super(MoEKAGNConv1DLayer, self).__init__(KAGNConv1DLayer, input_size, output_size, num_experts=num_experts,
+                                                 noisy_gating=noisy_gating, k=k,
+                                                 kernel_size=kernel_size, stride=stride, padding=padding, **kan_kwargs)
+
+
+class MoEKAGNConv3DLayer(MoEKANConvBase):
+    def __init__(self, input_size, output_size, num_experts=16, noisy_gating=True, k=4,
+                 kernel_size=3, stride=1, padding=1, **kan_kwargs):
+        super(MoEKAGNConv3DLayer, self).__init__(KAGNConv3DLayer, input_size, output_size, num_experts=num_experts,
+                                                 noisy_gating=noisy_gating, k=k,
+                                                 kernel_size=kernel_size, stride=stride, padding=padding, **kan_kwargs)
+
+
+class MoEKAGNConv2DLayer(MoEKANConvBase):
+    def __init__(self, input_size, output_size, num_experts=16, noisy_gating=True, k=4,
+                 kernel_size=3, stride=1, padding=1, **kan_kwargs):
+        super(MoEKAGNConv2DLayer, self).__init__(KAGNConv2DLayer, input_size, output_size, num_experts=num_experts,
+                                                 noisy_gating=noisy_gating, k=k,
+                                                 kernel_size=kernel_size, stride=stride, padding=padding, **kan_kwargs)
 
 
 class MoEKANConv1DLayer(MoEKANConvBase):

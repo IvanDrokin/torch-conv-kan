@@ -5,7 +5,7 @@ import torch.nn as nn
 class KACNConvNDLayer(nn.Module):
     def __init__(self, conv_class, norm_class, input_dim, output_dim, degree, kernel_size,
                  groups=1, padding=0, stride=1, dilation=1,
-                 ndim: int = 2):
+                 ndim: int = 2, dropout=0.0):
         super(KACNConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -16,6 +16,14 @@ class KACNConvNDLayer(nn.Module):
         self.dilation = dilation
         self.groups = groups
         self.ndim = ndim
+        self.dropout = None
+        if dropout > 0:
+            if ndim == 1:
+                self.dropout = nn.Dropout1d(p=dropout)
+            if ndim == 2:
+                self.dropout = nn.Dropout2d(p=dropout)
+            if ndim == 3:
+                self.dropout = nn.Dropout3d(p=dropout)
 
         if groups <= 0:
             raise ValueError('groups must be a positive integer')
@@ -45,10 +53,12 @@ class KACNConvNDLayer(nn.Module):
         # Apply base activation to input and then linear transform with base weights
         x = torch.tanh(x)
         x = x.acos().unsqueeze(2)
-        x = (x*self.arange).flatten(1, 2)
+        x = (x * self.arange).flatten(1, 2)
         x = x.cos()
         x = self.poly_conv[group_index](x)
         x = self.layer_norm[group_index](x)
+        if self.dropout is not None:
+            x = self.dropout(x)
         return x
 
     def forward(self, x):
@@ -63,27 +73,30 @@ class KACNConvNDLayer(nn.Module):
 
 
 class KACNConv3DLayer(KACNConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1):
+    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
+                 dropout=0.0):
         super(KACNConv3DLayer, self).__init__(nn.Conv3d, nn.BatchNorm3d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=3)
+                                              ndim=3, dropout=dropout)
 
 
 class KACNConv2DLayer(KACNConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1):
+    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
+                 dropout=0.0):
         super(KACNConv2DLayer, self).__init__(nn.Conv2d, nn.BatchNorm2d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=2)
+                                              ndim=2, dropout=dropout)
 
 
 class KACNConv1DLayer(KACNConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1):
+    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
+                 dropout=0.0):
         super(KACNConv1DLayer, self).__init__(nn.Conv1d, nn.BatchNorm1d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=1)
+                                              ndim=1, dropout=dropout)

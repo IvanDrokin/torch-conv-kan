@@ -7,7 +7,7 @@ import torch.nn as nn
 
 class WeightDecay(nn.Module):
     def __init__(self, module, weight_decay, name: str = None):
-        if weight_decay <= 0.0:
+        if weight_decay < 0.0:
             raise ValueError(
                 "Regularization's weight_decay should be greater than 0.0, got {}".format(
                     weight_decay
