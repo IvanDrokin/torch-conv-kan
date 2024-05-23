@@ -285,6 +285,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
+                output_hook.clear()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
