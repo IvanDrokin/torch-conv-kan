@@ -265,9 +265,9 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 l1_penalty = 0.
                 for _output in output_hook:
                     if cfg.model.l1_activation_penalty > 0:
-                        l1_penalty += torch.norm(_output, 1)
+                        l1_penalty += torch.norm(_output, 1, dim=0).mean()
                     if cfg.model.l2_activation_penalty > 0:
-                        l2_penalty += torch.norm(_output, 2)
+                        l2_penalty += torch.norm(_output, 2, dim=0).mean()
                 l2_penalty *= cfg.model.l2_activation_penalty
                 l1_penalty *= cfg.model.l2_activation_penalty
 
