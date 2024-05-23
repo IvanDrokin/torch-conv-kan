@@ -13,6 +13,7 @@ class SimpleConvKAGN(nn.Module):
             num_classes: int = 10,
             input_channels: int = 1,
             degree: int = 3,
+            degree_out: int = 3,
             groups: int = 1,
             dropout: float = 0.0,
             dropout_linear: float = 0.0,
@@ -31,7 +32,11 @@ class SimpleConvKAGN(nn.Module):
             nn.AdaptiveAvgPool2d((1, 1))
         )
 
-        self.output = KAGN([layer_sizes[3], num_classes], dropout=dropout_linear, first_dropout=True, degree=degree)
+        if degree_out < 2:
+            self.output = nn.Sequential(nn.Dropout(p=dropout_linear), nn.Linear(layer_sizes[3], num_classes))
+        else:
+            self.output = KAGN([layer_sizes[3], num_classes], dropout=dropout_linear, first_dropout=True,
+                               degree=degree_out)
 
     def forward(self, x):
         x = self.layers(x)
@@ -47,6 +52,7 @@ class EightSimpleConvKAGN(nn.Module):
             num_classes: int = 10,
             input_channels: int = 1,
             degree: int = 3,
+            degree_out: int = 3,
             groups: int = 1,
             dropout: float = 0.0,
             dropout_linear: float = 0.0,
@@ -73,7 +79,10 @@ class EightSimpleConvKAGN(nn.Module):
             nn.AdaptiveAvgPool2d((1, 1))
         )
 
-        self.output = KAGN([layer_sizes[7], num_classes], dropout=dropout_linear, first_dropout=True, degree=degree)
+        if degree_out < 2:
+            self.output = nn.Sequential(nn.Dropout(p=dropout_linear), nn.Linear(layer_sizes[7], num_classes))
+        else:
+            self.output = KAGN([layer_sizes[7], num_classes], dropout=dropout_linear, first_dropout=True, degree=degree_out)
 
     def forward(self, x):
         x = self.layers(x)

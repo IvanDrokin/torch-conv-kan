@@ -3,6 +3,7 @@ import math
 import os
 import shutil
 from pathlib import Path
+from copy import deepcopy
 
 import accelerate
 import numpy as np
@@ -16,11 +17,35 @@ from packaging import version
 from torch.optim.lr_scheduler import LambdaLR
 from torchmetrics.classification import Accuracy
 from tqdm.auto import tqdm
+import wandb
 
-from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer
+from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
 from .metrics import get_metrics
 
 logger = get_logger(__name__)
+
+
+class BestModel(object):
+    def __init__(self, tracking_metric):
+
+        if tracking_metric in ['accuracy, top5', 'accuracy', 'recall, macro', 'recall, micro',
+                               'f1_score, macro', 'f1_score, micro', 'auc, ovo', 'auc, ovr']:
+
+            self.metric_type = 'higher'
+        self.metric_val = None
+        self.best_model = None
+
+    def compare(self, model, metric):
+        if self.metric_val is None:
+            self.metric_val = metric
+            self.best_model = deepcopy(model)
+        else:
+            if self.metric_type == 'higher' and metric > self.metric_val:
+                self.metric_val = metric
+                self.best_model = deepcopy(model)
+            elif self.metric_type == 'lower' and metric < self.metric_val:
+                self.metric_val = metric
+                self.best_model = deepcopy(model)
 
 
 class OutputHook(list):
@@ -81,8 +106,10 @@ def get_polynomial_decay_schedule_with_warmup(
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=None):
+def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=None, cam_reporter=None):
     logging_dir = Path(cfg.output_dir, cfg.logging_dir)
+
+    best_model = BestModel(cfg.tracking_metric)
 
     accelerator_project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=cfg.find_unused_parameters)
@@ -181,8 +208,9 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
     # Prepare everything with our `accelerator`.
     output_hook = OutputHook()
-    for module in model.named_modules():
-        if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer)):
+    for module in model.modules():
+        if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer,
+                               KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
             module.register_forward_hook(output_hook)
 
     metric_acc = Accuracy(task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
@@ -263,32 +291,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 progress_bar.update(1)
                 global_step += 1
 
-                if accelerator.is_main_process:
-                    if global_step % cfg.checkpointing_steps == 0:
-                        # _before_ saving state, check if this save would set us over the `checkpoints_total_limit`
-                        if cfg.checkpoints_total_limit is not None:
-                            checkpoints = os.listdir(cfg.output_dir)
-                            checkpoints = [d for d in checkpoints if d.startswith("checkpoint")]
-                            checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[1]))
-
-                            # before we save the new checkpoint, we need to have at _most_ `checkpoints_total_limit - 1` checkpoints
-                            if len(checkpoints) >= cfg.checkpoints_total_limit:
-                                num_to_remove = len(checkpoints) - cfg.checkpoints_total_limit + 1
-                                removing_checkpoints = checkpoints[0:num_to_remove]
-
-                                logger.info(
-                                    f"{len(checkpoints)} checkpoints already exist, removing {len(removing_checkpoints)} checkpoints"
-                                )
-                                logger.info(f"removing checkpoints: {', '.join(removing_checkpoints)}")
-
-                                for removing_checkpoint in removing_checkpoints:
-                                    removing_checkpoint = os.path.join(cfg.output_dir, removing_checkpoint)
-                                    shutil.rmtree(removing_checkpoint)
-
-                        save_path = os.path.join(cfg.output_dir, f"checkpoint-{global_step}")
-                        accelerator.save_state(save_path)
-                        logger.info(f"Saved state to {save_path}")
-
             logs = {"loss": loss.detach().item(), "train_acc": acc.detach().item(),
                     "train_acc_top5": acc_t5.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
@@ -315,19 +317,108 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 predictions.append(all_predictions.detach().cpu().numpy())
 
         if accelerator.is_main_process:
+
+            wandb_tracker = accelerator.get_tracker("wandb")
+
             targets = np.concatenate(targets, axis=0)
             predictions = np.concatenate(predictions, axis=0)
             metrics = get_metrics(targets, predictions, cfg.metrics)
             accelerator.log(metrics, step=global_step)
 
+            best_model.compare(accelerator.unwrap_model(model), metrics[cfg.tracking_metric])
+
             del targets, predictions
+
+            if cfg.checkpoints_total_limit is not None:
+                checkpoints = os.listdir(cfg.output_dir)
+                checkpoints = [d for d in checkpoints if d.startswith("checkpoint")]
+                checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[1]))
+
+                # before we save the new checkpoint, we need to have at _most_ `checkpoints_total_limit - 1` checkpoints
+                if len(checkpoints) >= cfg.checkpoints_total_limit:
+                    num_to_remove = len(checkpoints) - cfg.checkpoints_total_limit + 1
+                    removing_checkpoints = checkpoints[0:num_to_remove]
+
+                    logger.info(
+                        f"{len(checkpoints)} checkpoints already exist, removing {len(removing_checkpoints)} checkpoints"
+                    )
+                    logger.info(f"removing checkpoints: {', '.join(removing_checkpoints)}")
+
+                    for removing_checkpoint in removing_checkpoints:
+                        removing_checkpoint = os.path.join(cfg.output_dir, removing_checkpoint)
+                        shutil.rmtree(removing_checkpoint)
+            if cam_reporter is not None:
+
+                logger.info(f"Running CAM Visualization")
+                report = cam_reporter.create_report(deepcopy(accelerator.unwrap_model(model)))
+
+                for key_layer, image_layer in report.items():
+                    wandb_tracker.log({key_layer: [wandb.Image(image_layer), ]}, step=epoch)
+                logger.info(f"CAM Visualization logged")
+
+            save_path = os.path.join(cfg.output_dir, f"checkpoint-{epoch}-acc-{metrics[cfg.tracking_metric]}")
+            accelerator.save_state(save_path)
+            logger.info(f"Saved state to {save_path}")
 
     # Create the pipeline using using the trained modules and save it.
     accelerator.wait_for_everyone()
+    if val_dataloader is not None:
+        output_metric = None
+        for model_name, test_model in [("last_model", model), ("best_model", best_model.best_model)]:
+
+            if model_name == 'best_model':
+                test_model = accelerator.prepare(test_model)
+
+            predictions = []
+            targets = []
+            for step, batch in enumerate(val_dataloader):
+                images, labels = batch
+                # We could avoid this line since we set the accelerator with `device_placement=True`.
+                with torch.no_grad():
+                    predicts = test_model(images, train=False)
+                    if isinstance(predicts, tuple):
+                        predicts, _ = predicts
+                    predicts = torch.softmax(predicts, dim=1)
+
+                all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
+
+                if accelerator.is_main_process:
+                    targets.append(all_targets.detach().cpu().numpy())
+                    predictions.append(all_predictions.detach().cpu().numpy())
+
+            if accelerator.is_main_process:
+                targets = np.concatenate(targets, axis=0)
+                predictions = np.concatenate(predictions, axis=0)
+                metrics = get_metrics(targets, predictions, cfg.metrics)
+
+                if output_metric is None:
+                    output_metric_header = [k for k in metrics.keys()]
+                    values = [[metrics[k] for k in output_metric_header], ]
+                    output_metric = (values, output_metric_header)
+                else:
+                    output_metric[0].append([metrics[k] for k in output_metric[1]])
+                del targets, predictions
+        test_table = wandb.Table(data=output_metric[0], columns=output_metric[1])
+        wandb_tracker = accelerator.get_tracker("wandb")
+        wandb_tracker.log({"test_set_metrics": test_table})
+
+    accelerator.wait_for_everyone()
     if accelerator.is_main_process:
+        wandb_tracker = accelerator.get_tracker("wandb")
         model = accelerator.unwrap_model(model)
-        torch.save(model.state_dict(), os.path.join(cfg.output_dir, cfg.model_name))
+        torch.save(model.state_dict(), os.path.join(cfg.output_dir, cfg.model_name + '_last'))
+
+        artifact = wandb.Artifact('model_last', type='model')
+        artifact.add_file(os.path.join(cfg.output_dir, cfg.model_name + '_last'))
+        wandb_tracker.log({"model_last": artifact})
+
+        model = accelerator.unwrap_model(best_model.best_model)
+        torch.save(model.state_dict(), os.path.join(cfg.output_dir, cfg.model_name + '_best'))
+
+        artifact = wandb.Artifact('model_best', type='model')
+        artifact.add_file(os.path.join(cfg.output_dir, cfg.model_name + '_best'))
+        wandb_tracker.log({"model_best": artifact})
 
     accelerator.end_training()
-    # TODO - add selection of best on test data model
+
     return model

@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch import Tensor, flatten
 
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
-from kan_convs import MoEKALNConv2DLayer
+from kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer
 from kans import KAN, KALN, KACN, KAGN, FastKAN
 from utils import L1
 
@@ -99,6 +99,30 @@ def moe_kaln_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: i
                      l1_decay: float = 0.0) -> MoEKALNConv2DLayer:
     """3x3 convolution with padding"""
     conv = MoEKALNConv2DLayer(
+        in_planes,
+        out_planes,
+        degree=degree,
+        kernel_size=3,
+        stride=stride,
+        padding=dilation,
+        dilation=dilation,
+        groups=groups,
+        num_experts=num_experts,
+        noisy_gating=noisy_gating,
+        k=k,
+        dropout=dropout
+    )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
+
+
+def moe_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
+                     dilation: int = 1, num_experts: int = 8,
+                     noisy_gating: bool = True, k: int = 2, dropout: float = 0.0,
+                     l1_decay: float = 0.0) -> MoEKAGNConv2DLayer:
+    """3x3 convolution with padding"""
+    conv = MoEKAGNConv2DLayer(
         in_planes,
         out_planes,
         degree=degree,

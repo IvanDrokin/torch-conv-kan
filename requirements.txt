@@ -11,3 +11,4 @@ pillow
 torchinfo
 torchmetrics
 einops
+matplotlib

@@ -21,11 +21,12 @@ class UKANet(nn.Module):
                  width_per_group: int = 64,
                  fcnv_kernel_size=7, fcnv_stride=1, fcnv_padding=3,
                  replace_stride_with_dilation: Optional[List[bool]] = None,
+                 width_scale: int = 1,
                  **kan_kwargs
                  ):
         super(UKANet, self).__init__()
         self.input_channels = input_channels
-        self.inplanes = 32
+        self.inplanes = 8 * width_scale
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -43,72 +44,90 @@ class UKANet(nn.Module):
             self.conv1 = KANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size, stride=fcnv_stride,
                                         padding=fcnv_padding, **kan_kwargs)
 
-            self.merge1 = KANConv2DLayer((32 + 64) * block.expansion, 32 * block.expansion, kernel_size=3,
+            self.merge1 = KANConv2DLayer((8 + 16) * width_scale * block.expansion,
+                                         8 * block.expansion * block.expansion, kernel_size=3,
                                          groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge2 = KANConv2DLayer((128 + 64) * block.expansion, 64 * block.expansion, kernel_size=3,
+            self.merge2 = KANConv2DLayer((32 + 16) * block.expansion * block.expansion,
+                                         16 * block.expansion * block.expansion, kernel_size=3,
                                          groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge3 = KANConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
+            self.merge3 = KANConv2DLayer((32 + 64) * block.expansion * block.expansion,
+                                         32 * block.expansion * block.expansion, kernel_size=3,
                                          groups=groups, stride=1, padding=1, **kan_kwargs)
         elif block in (FastKANBasicBlock, FastKANBottleneck):
             self.conv1 = FastKANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                             stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
 
-            self.merge1 = FastKANConv2DLayer((32 + 64) * block.expansion, 32 * block.expansion, kernel_size=3,
+            self.merge1 = FastKANConv2DLayer((8 + 16) * block.expansion * block.expansion,
+                                             8 * block.expansion * block.expansion, kernel_size=3,
                                              groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge2 = FastKANConv2DLayer((128 + 64) * block.expansion, 64 * block.expansion, kernel_size=3,
+            self.merge2 = FastKANConv2DLayer((32 + 16) * block.expansion * block.expansion,
+                                             16 * block.expansion * block.expansion, kernel_size=3,
                                              groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge3 = FastKANConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
+            self.merge3 = FastKANConv2DLayer((32 + 64) * block.expansion * block.expansion,
+                                             32 * block.expansion * block.expansion, kernel_size=3,
                                              groups=groups, stride=1, padding=1, **kan_kwargs)
         elif block in (KALNBasicBlock, KALNBottleneck):
             self.conv1 = KALNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
-            self.merge1 = KALNConv2DLayer((32 + 64) * block.expansion, 32 * block.expansion, kernel_size=3,
+            self.merge1 = KALNConv2DLayer((8 + 16) * block.expansion * block.expansion,
+                                          8 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge2 = KALNConv2DLayer((128 + 64) * block.expansion, 64 * block.expansion, kernel_size=3,
+            self.merge2 = KALNConv2DLayer((32 + 16) * block.expansion * block.expansion,
+                                          16 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge3 = KALNConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
+            self.merge3 = KALNConv2DLayer((32 + 64) * block.expansion * block.expansion,
+                                          32 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
         elif block in (KAGNBasicBlock, KAGNBottleneck):
             self.conv1 = KAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
-            self.merge1 = KAGNConv2DLayer((32 + 64) * block.expansion, 32 * block.expansion, kernel_size=3,
+            self.merge1 = KAGNConv2DLayer((8 + 16) * block.expansion * block.expansion,
+                                          8 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge2 = KAGNConv2DLayer((128 + 64) * block.expansion, 64 * block.expansion, kernel_size=3,
+            self.merge2 = KAGNConv2DLayer((32 + 16) * block.expansion * block.expansion,
+                                          16 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge3 = KAGNConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
+            self.merge3 = KAGNConv2DLayer((32 + 64) * block.expansion * block.expansion,
+                                          32 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
-            self.merge1 = KACNConv2DLayer((32 + 64) * block.expansion, 32 * block.expansion, kernel_size=3,
+            self.merge1 = KACNConv2DLayer((8 + 16) * block.expansion * block.expansion,
+                                          8 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge2 = KACNConv2DLayer((128 + 64) * block.expansion, 64 * block.expansion, kernel_size=3,
+            self.merge2 = KACNConv2DLayer((32 + 16) * block.expansion * block.expansion,
+                                          16 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
-            self.merge3 = KACNConv2DLayer((128 + 256) * block.expansion, 128 * block.expansion, kernel_size=3,
+            self.merge3 = KACNConv2DLayer((32 + 64) * block.expansion * block.expansion,
+                                          32 * block.expansion * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **kan_kwargs)
         else:
             raise TypeError(f"Block {type(block)} is not supported")
 
-        self.layer1e = self._make_layer(block, 32, layers[0], **kan_kwargs)
+        self.layer1e = self._make_layer(block, 8 * block.expansion, layers[0], **kan_kwargs)
         l1e_inplanes = self.inplanes
-        self.layer2e = self._make_layer(block, 64, layers[1], stride=2, dilate=replace_stride_with_dilation[0],
+        self.layer2e = self._make_layer(block, 16 * block.expansion, layers[1], stride=2,
+                                        dilate=replace_stride_with_dilation[0],
                                         **kan_kwargs)
         l2e_inplanes = self.inplanes
-        self.layer3e = self._make_layer(block, 128, layers[2], stride=2, dilate=replace_stride_with_dilation[1],
+        self.layer3e = self._make_layer(block, 32 * block.expansion, layers[2], stride=2,
+                                        dilate=replace_stride_with_dilation[1],
                                         **kan_kwargs)
         l3e_inplanes = self.inplanes
-        self.layer4e = self._make_layer(block, 256, layers[3], stride=2, dilate=replace_stride_with_dilation[2],
+        self.layer4e = self._make_layer(block, 64 * block.expansion, layers[3], stride=2,
+                                        dilate=replace_stride_with_dilation[2],
                                         **kan_kwargs)
 
-        self.layer4d = self._make_layer(block, 256, layers[3], **kan_kwargs)
+        self.layer4d = self._make_layer(block, 64 * block.expansion, layers[3], **kan_kwargs)
         self.inplanes = l1e_inplanes
-        self.layer1d = self._make_layer(block, 32, layers[0], **kan_kwargs)
+        self.layer1d = self._make_layer(block, 8 * block.expansion, layers[0], **kan_kwargs)
         self.inplanes = l2e_inplanes
-        self.layer2d = self._make_layer(block, 64, layers[1], **kan_kwargs)
+        self.layer2d = self._make_layer(block, 16 * block.expansion, layers[1], **kan_kwargs)
         self.inplanes = l3e_inplanes
-        self.layer3d = self._make_layer(block, 128, layers[2], **kan_kwargs)
+        self.layer3d = self._make_layer(block, 32 * block.expansion, layers[2], **kan_kwargs)
 
-        self.output = nn.Conv2d(32 * block.expansion, num_classes, kernel_size=1, padding=0, stride=1)
+        self.output = nn.Conv2d(8 * block.expansion * block.expansion, num_classes, kernel_size=1, padding=0, stride=1)
 
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
 
@@ -188,55 +207,62 @@ class UKANet(nn.Module):
 
 def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
               base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-              grid_range: List = [-1, 1]):
+              grid_range: List = [-1, 1], width_scale: int = 1):
     return UKANet(KANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
                   num_classes=num_classes,
                   groups=groups,
                   width_per_group=64,
-                  spline_order=spline_order, grid_size=grid_size, base_activation=base_activation,
-                  grid_range=grid_range)
+                  spline_order=spline_order,
+                  grid_size=grid_size,
+                  base_activation=base_activation,
+                  grid_range=grid_range,
+                  width_scale=width_scale)
 
 
 def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                    base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                   grid_range: List = [-1, 1]):
+                   grid_range: List = [-1, 1], width_scale: int = 1):
     return UKANet(FastKANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
                   num_classes=num_classes,
                   groups=groups,
                   width_per_group=64,
-                  grid_size=grid_size, base_activation=base_activation,
-                  grid_range=grid_range)
+                  grid_size=grid_size,
+                  base_activation=base_activation,
+                  grid_range=grid_range,
+                  width_scale=width_scale)
 
 
-def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3):
+def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
                   num_classes=num_classes,
                   groups=groups,
                   width_per_group=64,
-                  degree=degree)
+                  degree=degree, width_scale=width_scale)
 
 
-def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3):
+def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
                   num_classes=num_classes,
                   groups=groups,
                   width_per_group=64,
-                  degree=degree)
+                  degree=degree,
+                  width_scale=width_scale)
 
 
-def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3):
+def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1):
     return UKANet(KACNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
                   num_classes=num_classes,
                   groups=groups,
                   width_per_group=64,
-                  degree=degree)
+                  degree=degree,
+                  width_scale=width_scale)

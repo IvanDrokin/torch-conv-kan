@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from kans import KANLayer, KALNLayer, ChebyKANLayer, GRAMLayer, FastKANLayer
+from kans import KANLayer, KALNLayer, ChebyKANLayer, GRAMLayer, FastKANLayer, WavKANLayer
 
 
 def test_kan_fc():
@@ -29,6 +29,18 @@ def test_fastkan_fc(use_base_update):
                         use_base_update=use_base_update,
                         base_activation=nn.SiLU,
                         spline_weight_init_scale=0.1)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim)
+
+
+@pytest.mark.parametrize("wavelet_type", ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'])
+def test_wavkan_fc(wavelet_type):
+    bs = 6
+    input_dim = 4
+    output_dim = 16
+
+    input_tensor = torch.rand((bs, input_dim))
+    conv = WavKANLayer(input_dim, output_dim, wavelet_type=wavelet_type)
     out = conv(input_tensor)
     assert out.shape == (bs, output_dim)
 

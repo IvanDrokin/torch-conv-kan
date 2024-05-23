@@ -4,12 +4,12 @@ import pytest
 import torch
 import torch.nn as nn
 
-from kans import KAN, KALN, KACN, KAGN, FastKAN
+from kans import KAN, KALN, KACN, KAGN, FastKAN, WavKAN
 
 
 @pytest.mark.parametrize("dropout, first_dropout, l1_decay",
                          itertools.product([0.0, 0.5], [True, False], [0, 0.1]))
-def test_vggkan(dropout, first_dropout, l1_decay):
+def test_kan(dropout, first_dropout, l1_decay):
     bs = 6
     hidden_dim = 64
     input_dim = 32
@@ -27,7 +27,7 @@ def test_vggkan(dropout, first_dropout, l1_decay):
 
 @pytest.mark.parametrize("dropout, first_dropout, l1_decay",
                          itertools.product([0.0, 0.5], [True, False], [0, 0.1]))
-def test_fast_vggkan(dropout, first_dropout, l1_decay):
+def test_fast_kan(dropout, first_dropout, l1_decay):
     bs = 6
     hidden_dim = 64
     input_dim = 32
@@ -40,11 +40,29 @@ def test_fast_vggkan(dropout, first_dropout, l1_decay):
                    grid_range=[-1, 1], dropout=dropout, l1_decay=l1_decay, first_dropout=first_dropout)
     out = conv(input_tensor)
     assert out.shape == (bs, num_classes)
+    
+
+@pytest.mark.parametrize("dropout, first_dropout, l1_decay, wavelet_type",
+                         itertools.product([0.0, 0.5], [True, False], [0, 0.1],
+                                           ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon']))
+def test_wav_kan(dropout, first_dropout, l1_decay, wavelet_type):
+    bs = 6
+    hidden_dim = 64
+    input_dim = 32
+    num_classes = 128
+
+    input_tensor = torch.rand((bs, input_dim))
+    layers_hidden = [input_dim, hidden_dim, num_classes]
+
+    conv = WavKAN(layers_hidden, wavelet_type=wavelet_type, dropout=dropout,
+                  l1_decay=l1_decay, first_dropout=first_dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, num_classes)
 
 
 @pytest.mark.parametrize("dropout, first_dropout, l1_decay",
                          itertools.product([0.0, 0.5], [True, False], [0, 0.1]))
-def test_vggkaln(dropout, first_dropout, l1_decay):
+def test_kaln(dropout, first_dropout, l1_decay):
     bs = 6
     hidden_dim = 64
     input_dim = 32
@@ -62,7 +80,7 @@ def test_vggkaln(dropout, first_dropout, l1_decay):
 
 @pytest.mark.parametrize("dropout, first_dropout, l1_decay",
                          itertools.product([0.0, 0.5], [True, False], [0, 0.1]))
-def test_vggkagn(dropout, first_dropout, l1_decay):
+def test_kagn(dropout, first_dropout, l1_decay):
     bs = 6
     hidden_dim = 64
     input_dim = 32
@@ -80,7 +98,7 @@ def test_vggkagn(dropout, first_dropout, l1_decay):
 
 @pytest.mark.parametrize("dropout, first_dropout, l1_decay",
                          itertools.product([0.0, 0.5], [True, False], [0, 0.1]))
-def test_vggkacn(dropout, first_dropout, l1_decay):
+def test_kacn(dropout, first_dropout, l1_decay):
     bs = 6
     hidden_dim = 64
     input_dim = 32

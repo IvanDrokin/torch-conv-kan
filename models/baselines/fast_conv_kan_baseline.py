@@ -13,6 +13,7 @@ class SimpleFastConvKAN(nn.Module):
             num_classes: int = 10,
             input_channels: int = 1,
             grid_size: int = 8,
+            degree_out: int = 2,
             groups: int = 1,
             dropout: float = 0.0,
             dropout_linear: float = 0.0,
@@ -30,8 +31,11 @@ class SimpleFastConvKAN(nn.Module):
                                   padding=1, stride=1, dilation=1, dropout=dropout), l1_penalty),
             nn.AdaptiveAvgPool2d((1, 1))
         )
-        self.output = FastKAN([layer_sizes[3], num_classes], dropout=dropout_linear,
-                              first_dropout=True, grid_size=grid_size)
+        if degree_out < 2:
+            self.output = nn.Sequential(nn.Dropout(p=dropout_linear), nn.Linear(layer_sizes[3], num_classes))
+        else:
+            self.output = FastKAN([layer_sizes[3], num_classes], dropout=dropout_linear,
+                                  first_dropout=True, grid_size=grid_size)
 
     def forward(self, x):
         x = self.layers(x)
@@ -47,6 +51,7 @@ class EightSimpleFastConvKAN(nn.Module):
             num_classes: int = 10,
             input_channels: int = 1,
             grid_size: int = 8,
+            degree_out: int = 2,
             groups: int = 1,
             dropout: float = 0.0,
             dropout_linear: float = 0.0,
@@ -72,8 +77,12 @@ class EightSimpleFastConvKAN(nn.Module):
                                   padding=1, stride=1, dilation=1, dropout=dropout), l1_penalty),
             nn.AdaptiveAvgPool2d((1, 1))
         )
-        self.output = FastKAN([layer_sizes[7], num_classes], dropout=dropout_linear,
-                              first_dropout=True, grid_size=grid_size)
+
+        if degree_out < 2:
+            self.output = nn.Sequential(nn.Dropout(p=dropout_linear), nn.Linear(layer_sizes[7], num_classes))
+        else:
+            self.output = FastKAN([layer_sizes[7], num_classes], dropout=dropout_linear,
+                                  first_dropout=True, grid_size=grid_size)
 
     def forward(self, x):
         x = self.layers(x)

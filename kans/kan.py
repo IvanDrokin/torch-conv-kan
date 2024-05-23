@@ -16,11 +16,12 @@
 # limitations under the License.
 # and https://github.com/SynodicMonth/ChebyKAN/blob/main/ChebyKANLayer.py
 # and https://github.com/Khochawongwat/GRAMKAN/blob/main/model.py
+# and https://github.com/zavareh1/Wav-KAN
 from typing import List
 
 import torch.nn as nn
 from utils import L1
-from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer
+from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer
 
 
 class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
@@ -200,6 +201,40 @@ class KAGN(nn.Module):
         return x
 
 
+# TODO: implement
+class WavKAN(nn.Module):
+    def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0,
+                 first_dropout: bool = True, wavelet_type: str = 'mexican_hat'):
+        super(WavKAN, self).__init__()  # Initialize the parent nn.Module class
+
+        assert wavelet_type in ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'], \
+            ValueError(f"Unsupported wavelet type: {wavelet_type}")
+        # layers_hidden: A list of integers specifying the number of neurons in each layer
+        self.layers_hidden = layers_hidden
+        # polynomial_order: Order up to which Legendre polynomials are calculated
+        self.wavelet_type = wavelet_type
+        # list of layers
+        self.layers = nn.ModuleList([])
+        if dropout > 0 and first_dropout:
+            self.layers.append(nn.Dropout(p=dropout))
+        self.num_layers = len(layers_hidden[:-1])
+
+        for i, (in_features, out_features) in enumerate(zip(layers_hidden[:-1], layers_hidden[1:])):
+            # Base weight for linear transformation in each layer
+            layer = WavKANLayer(in_features, out_features, wavelet_type=wavelet_type)
+            if l1_decay > 0 and i != self.num_layers - 1:
+                layer = L1(layer, l1_decay)
+            self.layers.append(layer)
+
+            if dropout > 0 and i != self.num_layers - 1:
+                self.layers.append(nn.Dropout(p=dropout))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 def mlp_kan(layers_hidden, dropout: float = 0.0, grid_size: int = 5, spline_order: int = 3,
             base_activation: nn.Module = nn.GELU,
             grid_range: List = [-1, 1], l1_decay: float = 0.0) -> KAN:
@@ -226,3 +261,8 @@ def mlp_kagn(layers_hidden, dropout: float = 0.0, degree: int = 3,
              base_activation: nn.Module = nn.GELU, l1_decay: float = 0.0) -> KAGN:
     return KAGN(layers_hidden, dropout=dropout, base_activation=base_activation,
                 degree=degree, l1_decay=l1_decay)
+
+
+def mlp_wav_kan(layers_hidden, dropout: float = 0.0,
+                wavelet_type: str = 'mexican_hat',  l1_decay: float = 0.0) -> WavKAN:
+    return WavKAN(layers_hidden, dropout=dropout, wavelet_type=wavelet_type, l1_decay=l1_decay)

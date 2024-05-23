@@ -14,6 +14,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/19] ResNet-like, U-net like and MoE-based (don't ask why=)) models released with accelerate-based training code.
   
 - ✅ [2024/05/21] VGG-like and DenseNet-like models released! Gram KAN convolutional layers added.
+  
+- ✅ [2024/05/23] WavKAN convolutional layers added. Fixed a bug with output hook in ```trainer.py```.
 
 ### TODO list and next steps
 - [ ] Expand model zoo 
@@ -45,6 +47,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - The `KACNConv1DLayer`, `KACNConv1DLayer`, `KACNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Chebyshev polynomials instead of B-splines, introduced in [4]. Baseline model implemented in `models/baselines/conv_kacn_baseline.py`.
 
 - The `KAGNConv1DLayer`, `KAGNConv1DLayer`, `KAGNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Gram polynomials instead of B-splines, introduced in [5]. Baseline model implemented in `models/baselines/conv_kagn_baseline.py`.
+
+- The `WavKANConv1DLayer`, `WavKANConv1DLayer`, `WavKANConv1DLayer` classes represents a convolutional layers based on Wavelet Kolmogorov Arnold Network, introduced in [6]. Baseline model implemented in `models/baselines/conv_wavkan_baseline.py`.
 
 <a id="item-two"></a>
 ## Model Zoo
@@ -231,7 +235,7 @@ Contributions are welcome. Please raise issues as necessary.
 <a id="item-eight"></a>
 ## Acknowledgements
 
-This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), and [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN). and we would like to say thanks for their open research and exploration.
+This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN) and [WavKAN](https://github.com/zavareh1/Wav-KAN). and we would like to say thanks for their open research and exploration.
 
 <a id="item-nine"></a>
 ## References
@@ -240,6 +244,17 @@ This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN
 - [2] https://github.com/1ssb/torchkan
 - [3] https://github.com/ZiyaoLi/fast-kan
 - [4] https://github.com/SynodicMonth/ChebyKAN
-- [5] https://github.com/Khochawongwat/GRAMKAN  
-- [6] https://github.com/KindXiaoming/pykan
-- [7] https://github.com/Blealtan/efficient-kan
+- [5] https://github.com/Khochawongwat/GRAMKAN
+- [6] https://github.com/zavareh1/Wav-KAN  
+- [7] https://github.com/KindXiaoming/pykan
+- [8] https://github.com/Blealtan/efficient-kan
+
+## Star History
+
+<a href="https://star-history.com/#IvanDrokin/torch-conv-kan&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=IvanDrokin/torch-conv-kan&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=IvanDrokin/torch-conv-kan&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=IvanDrokin/torch-conv-kan&type=Date" />
+ </picture>
+</a>

@@ -14,7 +14,7 @@ class Classification(data.Dataset):
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         sample = self.dataset[index]
-        sample, label = sample['image'], sample['label']
+        sample, label = sample['image'].convert('RGB'), sample['label']
 
         if self.transform:
             sample = self.transform(sample)
