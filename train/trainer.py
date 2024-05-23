@@ -310,6 +310,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 if isinstance(predicts, tuple):
                     predicts, _ = predicts
                 predicts = torch.softmax(predicts, dim=1)
+                output_hook.clear()
 
             all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
 
@@ -380,6 +381,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     if isinstance(predicts, tuple):
                         predicts, _ = predicts
                     predicts = torch.softmax(predicts, dim=1)
+                    output_hook.clear()
 
                 all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
 
