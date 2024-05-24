@@ -41,7 +41,7 @@ class WaveletConvND(nn.Module):
                                                          groups=1,
                                                          bias=False) for _ in range(output_dim)])
 
-        self.wavelet_out = conv_class(output_dim, output_dim, 1, stride, 0, dilation, groups=1, bias=False)
+        self.wavelet_out = conv_class(output_dim, output_dim, 1, 1, 0, dilation, groups=1, bias=False)
 
         for conv_layer in self.wavelet_weights:
             nn.init.kaiming_uniform_(conv_layer.weight, nonlinearity='linear')

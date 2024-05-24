@@ -216,6 +216,9 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
     metric_acc = Accuracy(task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
     metric_acc_top5 = Accuracy(task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
 
+    if cfg.use_torch_compile:
+        model = torch.compile(model, mode="max-autotune", dynamic=False)
+
     model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5 = accelerator.prepare(
         model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5
     )
@@ -355,7 +358,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 report = cam_reporter.create_report(deepcopy(accelerator.unwrap_model(model)))
 
                 for key_layer, image_layer in report.items():
-                    wandb_tracker.log({key_layer: [wandb.Image(image_layer), ]}, step=epoch)
+                    wandb_tracker.log({key_layer: [wandb.Image(image_layer), ]}, step=global_step)
                 logger.info(f"CAM Visualization logged")
 
             save_path = os.path.join(cfg.output_dir, f"checkpoint-{epoch}-acc-{metrics[cfg.tracking_metric]}")
