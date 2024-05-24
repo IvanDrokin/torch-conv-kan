@@ -218,6 +218,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
     if cfg.use_torch_compile:
         model = torch.compile(model, mode="max-autotune", dynamic=False)
+        torch.set_float32_matmul_precision('high')
 
     model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5 = accelerator.prepare(
         model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5

@@ -6,12 +6,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
-import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from torchvision.transforms import v2
+from torchvision.transforms.autoaugment import AutoAugmentPolicy
 from tqdm import tqdm
 
 from models import SimpleConvKALN, SimpleFastConvKAN, SimpleConvKAN, SimpleConv, EightSimpleConvKALN, \
-    EightSimpleFastConvKAN, EightSimpleConvKAN, EightSimpleConv, SimpleConvKACN, EightSimpleConvKACN
+    EightSimpleFastConvKAN, EightSimpleConvKAN, EightSimpleConv, SimpleConvKACN, EightSimpleConvKACN, \
+    SimpleConvKAGN, EightSimpleConvKAGN, SimpleConvWavKAN, EightSimpleConvWavKAN
 
 
 class Trainer:
@@ -101,8 +103,8 @@ def quantize_and_evaluate(model, val_loader, criterion, save_path):
     evaluation_time = time.time() - start_time  # Calculate total evaluation time
 
     # Create directories if necessary and save the quantized model
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    torch.save(quantized_model.state_dict(), save_path)
+    # os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    # torch.save(quantized_model.state_dict(), save_path)
 
     return quantized_val_loss / len(val_loader), quantized_val_accuracy / len(val_loader), evaluation_time
 
@@ -110,29 +112,69 @@ def quantize_and_evaluate(model, val_loader, criterion, save_path):
 def train_and_validate(model, epochs=15, dataset_name='MNIST', model_save_dir="./models"):
     # Function to train, validate, quantize the model, and evaluate the quantized model
     # Define the transformations for the datasets
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
     # Load and transform the MNIST training dataset
     if dataset_name == 'MNIST':
-        trainset = torchvision.datasets.MNIST(root="./data", train=True, download=True, transform=transform)
+        transform_train = v2.Compose([
+            v2.RandomAffine(degrees=20, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+            v2.ColorJitter(brightness=0.2, contrast=0.2),
+            v2.ToTensor(),
+            v2.Normalize((0.5,), (0.5,))
+        ])
+
+        transform_test = v2.Compose([
+            v2.ToTensor(),
+            v2.Normalize((0.5,), (0.5,))
+        ])
+        trainset = torchvision.datasets.MNIST(root="./data", train=True, download=True, transform=transform_train)
         # Load and transform the MNIST validation dataset
-        valset = torchvision.datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+        valset = torchvision.datasets.MNIST(root="./data", train=False, download=True, transform=transform_test)
         # Create DataLoaders for training and validation datasets
     elif dataset_name == 'CIFAR10':
-        trainset = torchvision.datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
+        transform_train = v2.Compose([
+
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomChoice([v2.AutoAugment(AutoAugmentPolicy.CIFAR10),
+                             v2.AutoAugment(AutoAugmentPolicy.IMAGENET),
+                             v2.AutoAugment(AutoAugmentPolicy.SVHN),
+                             v2.TrivialAugmentWide()]),
+            v2.ToTensor(),
+            v2.Normalize((0.5,), (0.5,))
+        ])
+        transform_test = v2.Compose([
+            v2.ToTensor(),
+            v2.Normalize((0.5,), (0.5,))
+        ])
+        trainset = torchvision.datasets.CIFAR10(root="./data", train=True, download=True, transform=transform_train)
         # Load and transform the CIFAR10 validation dataset
-        valset = torchvision.datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
+        valset = torchvision.datasets.CIFAR10(root="./data", train=False, download=True, transform=transform_test)
         # Create DataLoaders for training and validation datasets
     else:
-        trainset = torchvision.datasets.CIFAR100(root="./data", train=True, download=True, transform=transform)
+        transform_train = v2.Compose([
+
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomChoice([v2.AutoAugment(AutoAugmentPolicy.CIFAR10),
+                             v2.AutoAugment(AutoAugmentPolicy.IMAGENET),
+                             v2.AutoAugment(AutoAugmentPolicy.SVHN),
+                             v2.TrivialAugmentWide()]),
+            v2.ToTensor(),
+            v2.Normalize((0.5,), (0.5,))
+        ])
+        transform_test = v2.Compose([
+            v2.ToTensor(),
+            v2.Normalize((0.5,), (0.5,))
+        ])
+        trainset = torchvision.datasets.CIFAR100(root="./data", train=True, download=True, transform=transform_train)
         # Load and transform the CIFAR100 validation dataset
-        valset = torchvision.datasets.CIFAR100(root="./data", train=False, download=True, transform=transform)
+        valset = torchvision.datasets.CIFAR100(root="./data", train=False, download=True, transform=transform_test)
         # Create DataLoaders for training and validation datasets
-    trainloader = DataLoader(trainset, batch_size=256, shuffle=True)
-    valloader = DataLoader(valset, batch_size=256, shuffle=False)
+    trainloader = DataLoader(trainset, batch_size=128, shuffle=True)
+    valloader = DataLoader(valset, batch_size=128, shuffle=False)
 
     # Determine the appropriate device based on GPU availability
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)  # Move the model to the selected device
+
+    model = torch.compile(model)
 
     # Set up the optimizer with specified parameters
     optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
@@ -149,7 +191,7 @@ def train_and_validate(model, epochs=15, dataset_name='MNIST', model_save_dir=".
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Save the trained model's state dictionary
-    torch.save(model.state_dict(), os.path.join(model_save_dir, "original_model.pth"))
+    # torch.save(model.state_dict(), os.path.join(model_save_dir, "original_model.pth"))
 
     # Quantize and evaluate the quantized model
     quantized_loss, quantized_accuracy, quantized_time = quantize_and_evaluate(model, valloader, criterion,
@@ -183,137 +225,116 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-# def get_kan_model(num_classes, input_channels):
-#     return SimpleConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=input_channels,
-#                          spline_order=3, groups=4)
-#
-#
-# def get_kaln_model(num_classes, input_channels):
-#     return SimpleConvKALN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=input_channels,
-#                           degree=3, groups=4)
-#
-#
-# def get_kacn_model(num_classes, input_channels):
-#     return SimpleConvKACN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=input_channels,
-#                           degree=3, groups=4)
-#
-#
-# def get_fast_kan_model(num_classes, input_channels):
-#     return SimpleFastConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=input_channels,
-#                              grid_size=8, groups=4)
-#
-#
-# def get_simple_conv_model(num_classes, input_channels):
-#     return SimpleConv([8 * 4, 16 * 4, 32 * 4, 64 * 8], num_classes=num_classes, input_channels=input_channels, groups=4)
-#
-#
-# def get_8kan_model(num_classes, input_channels):
-#     return EightSimpleConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 8, 128 * 8, 128 * 8, 128 * 8, 128 * 8],
-#                               num_classes=num_classes, input_channels=input_channels,
-#                               spline_order=3, groups=4)
-#
-#
-# def get_8kaln_model(num_classes, input_channels):
-#     return EightSimpleConvKALN([8 * 4, 16 * 4, 32 * 4, 64 * 8, 128 * 8, 128 * 8, 128 * 8, 128 * 8],
-#                                num_classes=num_classes, input_channels=input_channels,
-#                                degree=3, groups=4)
-#
-#
-# def get_8kacn_model(num_classes, input_channels):
-#     return EightSimpleConvKACN([8 * 4, 16 * 4, 32 * 4, 64 * 8, 128 * 8, 128 * 8, 128 * 8, 128 * 8],
-#                                num_classes=num_classes, input_channels=input_channels,
-#                                degree=3, groups=4)
-#
-#
-# def get_8fast_kan_model(num_classes, input_channels):
-#     return EightSimpleFastConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 8, 128 * 8, 128 * 8, 128 * 8, 128 * 8],
-#                                   num_classes=num_classes, input_channels=input_channels,
-#                                   grid_size=8, groups=4)
-#
-#
-# def get_8simple_conv_model(num_classes, input_channels):
-#     return EightSimpleConv([8 * 4, 16 * 4, 32 * 4, 64 * 8, 128 * 8, 128 * 8, 128 * 8, 128 * 8], num_classes=num_classes,
-#                            input_channels=input_channels, groups=4)
-
-
 def get_kan_model(num_classes, input_channels):
-    return SimpleConvKAN([8, 16, 32, 64 * 2], num_classes=num_classes, input_channels=input_channels,
-                         spline_order=3, groups=4)
+    return SimpleConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
+                         spline_order=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_kaln_model(num_classes, input_channels):
-    return SimpleConvKALN([8, 16, 32, 64 * 2], num_classes=num_classes, input_channels=input_channels,
-                          degree=3, groups=4)
+    return SimpleConvKALN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
+                          degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
+
+
+def get_kagn_model(num_classes, input_channels):
+    return SimpleConvKAGN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
+                          degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_kacn_model(num_classes, input_channels):
-    return SimpleConvKACN([8, 16, 32, 64 * 2], num_classes=num_classes, input_channels=input_channels,
-                          degree=3, groups=4)
+    return SimpleConvKACN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
+                          degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
+
+
+def get_wavkan_model(num_classes, input_channels):
+    return SimpleConvWavKAN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
+                            wavelet_type='mexican_hat', groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_fast_kan_model(num_classes, input_channels):
-    return SimpleFastConvKAN([8, 16, 32, 64 * 2], num_classes=num_classes, input_channels=input_channels,
-                             grid_size=8, groups=4)
+    return SimpleFastConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
+                             grid_size=8, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_simple_conv_model(num_classes, input_channels):
-    return SimpleConv([8, 16, 32, 64 * 2], num_classes=num_classes, input_channels=input_channels, groups=4)
+    return SimpleConv([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels, groups=4)
 
 
 def get_8kan_model(num_classes, input_channels):
-    return EightSimpleConvKAN([8, 16, 32, 64 * 2, 128, 128 * 2, 128 * 2, 128 * 2],
+    return EightSimpleConvKAN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                               num_classes=num_classes, input_channels=input_channels,
-                              spline_order=3, groups=4)
+                              spline_order=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_8kaln_model(num_classes, input_channels):
-    return EightSimpleConvKALN([8, 16, 32, 64 * 2, 128, 128 * 2, 128 * 2, 128 * 2],
+    return EightSimpleConvKALN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                num_classes=num_classes, input_channels=input_channels,
-                               degree=3, groups=4)
+                               degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
+
+
+def get_8kagn_model(num_classes, input_channels):
+    return EightSimpleConvKAGN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
+                               num_classes=num_classes, input_channels=input_channels,
+                               degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
+
+
+def get_8wavkan_model(num_classes, input_channels):
+    return EightSimpleConvWavKAN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
+                                 num_classes=num_classes, input_channels=input_channels,
+                                 wavelet_type='mexican_hat', groups=4,
+                                 dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_8kacn_model(num_classes, input_channels):
-    return EightSimpleConvKACN([8, 16, 32, 64 * 2, 128, 128 * 2, 128 * 2, 128 * 2],
+    return EightSimpleConvKACN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                num_classes=num_classes, input_channels=input_channels,
-                               degree=3, groups=4)
+                               degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_8fast_kan_model(num_classes, input_channels):
-    return EightSimpleFastConvKAN([8, 16, 32, 64 * 2, 128, 128 * 2, 128 * 2, 128 * 2],
+    return EightSimpleFastConvKAN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                   num_classes=num_classes, input_channels=input_channels,
-                                  grid_size=8, groups=4)
+                                  grid_size=8, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000001)
 
 
 def get_8simple_conv_model(num_classes, input_channels):
-    return EightSimpleConv([8, 16, 32, 64 * 2, 128, 128 * 2, 128 * 2, 128 * 2], num_classes=num_classes,
+    return EightSimpleConv([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4], num_classes=num_classes,
                            input_channels=input_channels, groups=4)
 
+
 if __name__ == '__main__':
+    for dataset_name in ['MNIST', ]:
     # for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
-    for dataset_name in ['CIFAR10', 'CIFAR100']:
-        for model_name in ['KAN', "KALN", "FastKAN", 'KACN', "Vanilla",
-        'KAN8', "KALN8", "FastKAN8", "KACN8", "Vanilla8"]:
-        # for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
-        #     for model_name in ['KACN', 'KACN8', 'Vanilla', 'Vanilla8']:
-            folder_to_save = os.path.join('experiments_2', '_'.join([model_name.lower(), dataset_name.lower()]))
+        # for model_name in ['KAN', "KALN", "FastKAN", 'KACN', 'KAGN', 'WavKAN', "Vanilla",
+        #                    'KAN8', "KALN8", "FastKAN8", "KACN8", 'KAGN8', 'WavKAN8', "Vanilla8"]:
+            # for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
+        for model_name in ['WavKAN', 'WavKAN8',]:
+            folder_to_save = os.path.join('experiments_v3', '_'.join([model_name.lower(), dataset_name.lower()]))
             num_classes = 100 if dataset_name == 'CIFAR100' else 10
             input_channels = 1 if dataset_name == 'MNIST' else 3
             if model_name == 'KAN':
                 kan_model = get_kan_model(num_classes, input_channels)
             elif model_name == 'KALN':
                 kan_model = get_kaln_model(num_classes, input_channels)
+            elif model_name == 'KAGN':
+                kan_model = get_kagn_model(num_classes, input_channels)
             elif model_name == 'KACN':
                 kan_model = get_kacn_model(num_classes, input_channels)
             elif model_name == 'FastKAN':
                 kan_model = get_fast_kan_model(num_classes, input_channels)
+            elif model_name == 'WavKAN':
+                kan_model = get_wavkan_model(num_classes, input_channels)
             elif model_name == 'KAN8':
                 kan_model = get_8kan_model(num_classes, input_channels)
             elif model_name == 'KALN8':
                 kan_model = get_8kaln_model(num_classes, input_channels)
+            elif model_name == 'KAGN8':
+                kan_model = get_8kagn_model(num_classes, input_channels)
             elif model_name == 'KACN8':
                 kan_model = get_8kacn_model(num_classes, input_channels)
             elif model_name == 'FastKAN8':
                 kan_model = get_8fast_kan_model(num_classes, input_channels)
+            elif model_name == 'WavKAN8':
+                kan_model = get_8wavkan_model(num_classes, input_channels)
             elif model_name == 'Vanilla':
                 kan_model = get_simple_conv_model(num_classes, input_channels)
             else:
