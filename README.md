@@ -16,6 +16,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/21] VGG-like and DenseNet-like models released! Gram KAN convolutional layers added.
   
 - ✅ [2024/05/23] WavKAN convolutional layers added. Fixed a bug with output hook in ```trainer.py```.
+  
+- ✅ [2024/05/25] U2-net like models added. Fixed a memory leak in ```trainer.py```.
 
 ### TODO list and next steps
 - [ ] Expand model zoo 
@@ -76,9 +78,9 @@ Please, take into account that this is preliminary results and more experiments 
 We introduce VGGKANs - an VGG like models with KAN convolutions instead of regular one, based on resnet blocks. Main class ```VGG``` could be found ```models/vggkan.py```. 
 
 
-### UKANet
+### UKANet and U2KANet
 
-We introduce UKANets - an U-net like model with KAN convolutions instead of regular one, based on resnet blocks. Main class ```UKANet``` could be found ```models/ukanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN, KAGC and KACN convolutional layers.
+We introduce UKANets and U2KANets - an U-net/U2-net like model with KAN convolutions instead of regular one, based on resnet blocks. Main class ```UKANet``` could be found ```models/ukanet.py```. Our implementation supports Basic and Bottleneck blocks with KAN, Fast KAN, KALN, KAGC and KACN convolutional layers.
 
 <a id="item-three"></a>
 ## Performance Metrics

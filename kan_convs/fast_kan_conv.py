@@ -61,7 +61,7 @@ class FastKANConvNDLayer(nn.Module):
                                                      groups=1,
                                                      bias=False) for _ in range(groups)])
 
-        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups) for _ in range(groups)])
+        self.layer_norm = nn.ModuleList([norm_class(input_dim // groups) for _ in range(groups)])
 
         self.rbf = RadialBasisFunction(grid_range[0], grid_range[1], grid_size)
 

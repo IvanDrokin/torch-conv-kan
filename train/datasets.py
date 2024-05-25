@@ -1,4 +1,5 @@
 from typing import Any, Tuple
+from PIL import Image
 
 import torch.utils.data as data
 
@@ -14,7 +15,11 @@ class Classification(data.Dataset):
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         sample = self.dataset[index]
-        sample, label = sample['image'].convert('RGB'), sample['label']
+        sample, label = sample['image'], sample['label']
+        if isinstance(sample, str):
+            sample = Image.open(sample)
+
+        sample = sample.convert('RGB')
 
         if self.transform:
             sample = self.transform(sample)

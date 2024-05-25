@@ -1,3 +1,5 @@
+import gc
+from functools import partial
 import logging
 import math
 import os
@@ -15,7 +17,7 @@ from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
 from packaging import version
 from torch.optim.lr_scheduler import LambdaLR
-from torchmetrics.classification import Accuracy
+from torchmetrics.functional import accuracy
 from tqdm.auto import tqdm
 import wandb
 
@@ -51,7 +53,6 @@ class BestModel(object):
 class OutputHook(list):
     """ Hook to capture module outputs.
     """
-
     def __call__(self, module, input, output):
         self.append(output)
 
@@ -160,6 +161,12 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
     model.train()
 
+    if cfg.use_torch_compile:
+        compiled_model = torch.compile(model, mode="max-autotune", dynamic=False)
+        torch.set_float32_matmul_precision('high')
+    else:
+        compiled_model = None
+
     optimizer_class = torch.optim.AdamW
     params_to_optimize = model.parameters()
     optimizer = optimizer_class(
@@ -213,16 +220,14 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                                KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
             module.register_forward_hook(output_hook)
 
-    metric_acc = Accuracy(task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
-    metric_acc_top5 = Accuracy(task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
-
-    if cfg.use_torch_compile:
-        model = torch.compile(model, mode="max-autotune", dynamic=False)
-        torch.set_float32_matmul_precision('high')
-
+    metric_acc = partial(accuracy, task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
+    metric_acc_top5 = partial(accuracy, task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
     model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5 = accelerator.prepare(
         model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5
     )
+    output_hook = accelerator.prepare(output_hook)
+    if cfg.use_torch_compile:
+        compiled_model = accelerator.prepare(compiled_model)
     if test_dataloader is not None:
         test_dataloader = accelerator.prepare(test_dataloader)
 
@@ -259,7 +264,10 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 # Convert images to latent space
                 images, labels = batch
 
-                output = model(images)
+                if cfg.use_torch_compile:
+                    output = compiled_model(images)
+                else:
+                    output = model(images)
                 if isinstance(output, tuple):
                     output, moe_loss = output
                 else:
@@ -303,6 +311,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
             if global_step >= cfg.max_train_steps:
                 break
+        gc.collect()
         model.eval()
         predictions = []
         targets = []
@@ -366,9 +375,10 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
             accelerator.save_state(save_path)
             logger.info(f"Saved state to {save_path}")
 
+        gc.collect()
     # Create the pipeline using using the trained modules and save it.
     accelerator.wait_for_everyone()
-    if val_dataloader is not None:
+    if test_dataloader is not None:
         output_metric = None
         for model_name, test_model in [("last_model", model), ("best_model", best_model.best_model)]:
 
@@ -377,7 +387,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
             predictions = []
             targets = []
-            for step, batch in enumerate(val_dataloader):
+            for step, batch in enumerate(test_dataloader):
                 images, labels = batch
                 # We could avoid this line since we set the accelerator with `device_placement=True`.
                 with torch.no_grad():

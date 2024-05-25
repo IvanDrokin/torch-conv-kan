@@ -13,5 +13,8 @@ from .reskanet import reskanet_18x32p, reskacnet_18x32p, fast_reskanet_18x32p, r
 from .densekanet import densekanet121, densekalnet121, densekacnet121, densekagnet121, fast_densekanet121
 from .densekanet import densekalnet161, densekalnet169, densekalnet201
 from .densekanet import tiny_densekanet, tiny_densekalnet, tiny_densekacnet, tiny_fast_densekanet, tiny_densekagnet
-from .ukanet import ukanet_18, ukalnet_18, fast_ukanet_18, ukacnet_18, ukagnet_18
 from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn, moe_vggkagn
+
+from .ukanet import ukanet_18, ukalnet_18, fast_ukanet_18, ukacnet_18, ukagnet_18
+from .u2kanet import u2kagnet, u2kacnet, u2kalnet, u2kanet, fast_u2kanet
+from .u2kanet import u2kagnet_small, u2kacnet_small, u2kalnet_small, u2kanet_small, fast_u2kanet_small
