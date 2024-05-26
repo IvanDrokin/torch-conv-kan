@@ -167,10 +167,10 @@ def vggkaln(input_channels, num_classes, groups: int = 1, degree: int = 3, dropo
 
 def vggkagn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
             dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
+            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
     conv_fun = partial(kagn_conv3x3, degree=degree,
-                       dropout=dropout, l1_decay=l1_decay, groups=groups)
-    conv_fun_first = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay)
+                       dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
+    conv_fun_first = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
     kan_fun = partial(mlp_kagn, degree=degree,
                       dropout=dropout_linear, l1_decay=l1_decay)
 

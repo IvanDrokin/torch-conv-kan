@@ -74,7 +74,7 @@ def kaln_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int =
 
 def kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
                  dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
-                 l1_decay: float = 0.0) -> KAGNConv2DLayer:
+                 l1_decay: float = 0.0, **norm_kwargs) -> KAGNConv2DLayer:
     """3x3 convolution with padding"""
     conv = KAGNConv2DLayer(
         in_planes,
@@ -86,7 +86,8 @@ def kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int =
         dilation=dilation,
         groups=groups,
         dropout=dropout,
-        norm_layer=norm_layer
+        norm_layer=norm_layer,
+        **norm_kwargs
     )
     if l1_decay > 0:
         conv = L1(conv, l1_decay)

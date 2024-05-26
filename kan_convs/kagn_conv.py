@@ -7,7 +7,8 @@ from torch.nn.functional import conv3d, conv2d, conv1d
 
 class KAGNConvNDLayer(nn.Module):
     def __init__(self, conv_class, norm_class, conv_w_fun, input_dim, output_dim, degree, kernel_size,
-                 groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2):
+                 groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2.,
+                 **norm_kwargs):
         super(KAGNConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -21,6 +22,8 @@ class KAGNConvNDLayer(nn.Module):
         self.conv_w_fun = conv_w_fun
         self.ndim = ndim
         self.dropout = None
+        self.norm_kwargs = norm_kwargs
+        self.p_dropout = dropout
         if dropout > 0:
             if ndim == 1:
                 self.dropout = nn.Dropout1d(p=dropout)
@@ -45,7 +48,7 @@ class KAGNConvNDLayer(nn.Module):
                                                    groups=1,
                                                    bias=False) for _ in range(groups)])
 
-        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups) for _ in range(groups)])
+        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
         poly_shape = (groups, output_dim // groups, (input_dim // groups) * (degree + 1)) + tuple(
             kernel_size for _ in range(ndim))
@@ -69,7 +72,7 @@ class KAGNConvNDLayer(nn.Module):
                        ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
                ) * self.beta_weights[n]
 
-    @lru_cache(maxsize=128)  # Cache to avoid recomputation of Legendre polynomials
+    @lru_cache(maxsize=128)  # Cache to avoid recomputation of Gram polynomials
     def gram_poly(self, x, degree):
         p0 = x.new_ones(x.size())
 
@@ -97,12 +100,6 @@ class KAGNConvNDLayer(nn.Module):
             x = self.dropout(x)
 
         grams_basis = self.base_activation(self.gram_poly(x, self.degree))
-        # Check correct eralization
-        # y = einsum(
-        #     grams_basis,
-        #     self.grams_basis_weights,
-        #     "b l d, l o d -> b o",
-        # )
 
         y = self.conv_w_fun(grams_basis, self.poly_weights[group_index],
                             stride=self.stride, dilation=self.dilation,
@@ -114,7 +111,6 @@ class KAGNConvNDLayer(nn.Module):
 
     def forward(self, x):
 
-        # x = self.base_conv(x)
         split_x = torch.split(x, self.inputdim // self.groups, dim=1)
         output = []
         for group_ind, _x in enumerate(split_x):
@@ -126,29 +122,29 @@ class KAGNConvNDLayer(nn.Module):
 
 class KAGNConv3DLayer(KAGNConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0):
-        super(KAGNConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d, conv3d,
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, **norm_kwargs):
+        super(KAGNConv3DLayer, self).__init__(nn.Conv3d, norm_layer, conv3d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=3, dropout=dropout)
+                                              ndim=3, dropout=dropout, **norm_kwargs)
 
 
 class KAGNConv2DLayer(KAGNConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d):
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, **norm_kwargs):
         super(KAGNConv2DLayer, self).__init__(nn.Conv2d, norm_layer, conv2d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=2, dropout=dropout)
+                                              ndim=2, dropout=dropout, **norm_kwargs)
 
 
 class KAGNConv1DLayer(KAGNConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0):
-        super(KAGNConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d, conv1d,
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, **norm_kwargs):
+        super(KAGNConv1DLayer, self).__init__(nn.Conv1d, norm_layer, conv1d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=1, dropout=dropout)
+                                              ndim=1, dropout=dropout, **norm_kwargs)
