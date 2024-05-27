@@ -22,7 +22,7 @@ class RadialBasisFunction(nn.Module):
 class FastKANConvNDLayer(nn.Module):
     def __init__(self, conv_class, norm_class, input_dim, output_dim, kernel_size,
                  groups=1, padding=0, stride=1, dilation=1,
-                 ndim: int = 2, grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0):
+                 ndim: int = 2, grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0, **norm_kwargs):
         super(FastKANConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -35,6 +35,7 @@ class FastKANConvNDLayer(nn.Module):
         self.grid_size = grid_size
         self.base_activation = base_activation()
         self.grid_range = grid_range
+        self.norm_kwargs = norm_kwargs
 
         if groups <= 0:
             raise ValueError('groups must be a positive integer')
@@ -61,7 +62,7 @@ class FastKANConvNDLayer(nn.Module):
                                                      groups=1,
                                                      bias=False) for _ in range(groups)])
 
-        self.layer_norm = nn.ModuleList([norm_class(input_dim // groups) for _ in range(groups)])
+        self.layer_norm = nn.ModuleList([norm_class(input_dim // groups, **norm_kwargs) for _ in range(groups)])
 
         self.rbf = RadialBasisFunction(grid_range[0], grid_range[1], grid_size)
 
@@ -106,38 +107,41 @@ class FastKANConvNDLayer(nn.Module):
 
 class FastKANConv3DLayer(FastKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0):
-        super(FastKANConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d,
+                 grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0,
+                 norm_layer=nn.InstanceNorm3d, **norm_kwargs):
+        super(FastKANConv3DLayer, self).__init__(nn.Conv3d, norm_layer,
                                                  input_dim, output_dim,
                                                  kernel_size,
                                                  groups=groups, padding=padding, stride=stride, dilation=dilation,
                                                  ndim=3,
                                                  grid_size=grid_size, base_activation=base_activation,
                                                  grid_range=grid_range,
-                                                 dropout=dropout)
+                                                 dropout=dropout, **norm_kwargs)
 
 
 class FastKANConv2DLayer(FastKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0):
-        super(FastKANConv2DLayer, self).__init__(nn.Conv2d, nn.InstanceNorm2d,
+                 grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0,
+                 norm_layer=nn.InstanceNorm2d, **norm_kwargs):
+        super(FastKANConv2DLayer, self).__init__(nn.Conv2d, norm_layer,
                                                  input_dim, output_dim,
                                                  kernel_size,
                                                  groups=groups, padding=padding, stride=stride, dilation=dilation,
                                                  ndim=2,
                                                  grid_size=grid_size, base_activation=base_activation,
                                                  grid_range=grid_range,
-                                                 dropout=dropout)
+                                                 dropout=dropout, **norm_kwargs)
 
 
 class FastKANConv1DLayer(FastKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0):
-        super(FastKANConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d,
+                 grid_size=8, base_activation=nn.SiLU, grid_range=[-2, 2], dropout=0.0,
+                 norm_layer=nn.InstanceNorm1d, **norm_kwargs):
+        super(FastKANConv1DLayer, self).__init__(nn.Conv1d, norm_layer,
                                                  input_dim, output_dim,
                                                  kernel_size,
                                                  groups=groups, padding=padding, stride=stride, dilation=dilation,
                                                  ndim=1,
                                                  grid_size=grid_size, base_activation=base_activation,
                                                  grid_range=grid_range,
-                                                 dropout=dropout)
+                                                 dropout=dropout, **norm_kwargs)

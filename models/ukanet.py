@@ -7,7 +7,7 @@ import torch.nn as nn
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
 from .reskanet import KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KANBottleneck, \
     FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck, KAGNBasicBlock
-from .reskanet import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1
+from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1
 
 
 class UKANet(nn.Module):
@@ -207,7 +207,7 @@ class UKANet(nn.Module):
 
 def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
               base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-              grid_range: List = [-1, 1], width_scale: int = 1):
+              grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True):
     return UKANet(KANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -218,12 +218,13 @@ def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 
                   grid_size=grid_size,
                   base_activation=base_activation,
                   grid_range=grid_range,
-                  width_scale=width_scale)
+                  width_scale=width_scale,
+                  affine=affine)
 
 
 def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                    base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                   grid_range: List = [-1, 1], width_scale: int = 1):
+                   grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True):
     return UKANet(FastKANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -233,20 +234,24 @@ def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int 
                   grid_size=grid_size,
                   base_activation=base_activation,
                   grid_range=grid_range,
-                  width_scale=width_scale)
+                  width_scale=width_scale,
+                  affine=affine)
 
 
-def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1):
+def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+               affine: bool = True):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
                   num_classes=num_classes,
                   groups=groups,
                   width_per_group=64,
-                  degree=degree, width_scale=width_scale)
+                  degree=degree, width_scale=width_scale,
+                  affine=affine)
 
 
-def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1):
+def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+               affine: bool = True):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -254,10 +259,12 @@ def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, wi
                   groups=groups,
                   width_per_group=64,
                   degree=degree,
-                  width_scale=width_scale)
+                  width_scale=width_scale,
+                  affine=affine)
 
 
-def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1):
+def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3,
+               width_scale: int = 1, affine: bool = True):
     return UKANet(KACNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -265,4 +272,5 @@ def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, wi
                   groups=groups,
                   width_per_group=64,
                   degree=degree,
-                  width_scale=width_scale)
+                  width_scale=width_scale,
+                  affine=affine)

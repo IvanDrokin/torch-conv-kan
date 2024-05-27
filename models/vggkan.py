@@ -6,9 +6,9 @@ from typing import cast, Dict, List, Optional, Union, Tuple, Callable
 import torch
 import torch.nn as nn
 
-from kans import mlp_kan, mlp_fastkan, mlp_kacn, mlp_kagn, mlp_kaln
-from .reskanet import kan_conv3x3, kaln_conv3x3, fast_kan_conv3x3, kacn_conv3x3, kagn_conv3x3
-from .reskanet import moe_kagn_conv3x3
+from kans import mlp_kan, mlp_fastkan, mlp_kacn, mlp_kagn, mlp_kaln, mlp_wav_kan
+from .model_utils import kan_conv3x3, kaln_conv3x3, fast_kan_conv3x3, kacn_conv3x3, kagn_conv3x3, wav_kan_conv3x3
+from .model_utils import moe_kagn_conv3x3
 
 
 class VGG(nn.Module):
@@ -57,7 +57,8 @@ cfgs: Dict[str, List[Union[str, int]]] = {
     "VGG11v2": [16, "M", 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M", 128, 128],
     "VGG13v2": [16, 16, "M", 32, 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M", 128, 128],
     "VGG16v2": [16, 16, "M", 32, 32, "M", 64, 64, 64, "M", 128, 128, 128, "M", 128, 128, 128, "M", 128, 128],
-    "VGG19v2": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "M", 128, 128, 128, 128, "M", 128, 128, 128, 128, "M", 128, 128],
+    "VGG19v2": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "M", 128, 128, 128, 128, "M", 128, 128, 128, 128, "M", 128,
+                128],
 }
 
 
@@ -87,6 +88,12 @@ def make_layers(cfg: List[Union[str, int]],
             in_channels = v * width_scale
     if head_type == 'KAN':
         classification = kan_fun([in_channels * prod(expected_feature_shape), num_classes])
+    elif head_type == 'HiddenKAN':
+        classification = nn.Sequential(
+            kan_fun([in_channels * prod(expected_feature_shape), 1024]),
+            nn.Dropout(p=head_dropout),
+            nn.Linear(1024, num_classes),
+        )
     elif head_type == 'VGG':
         classification = nn.Sequential(
             nn.Linear(in_channels * prod(expected_feature_shape), 1024),
@@ -112,12 +119,12 @@ def vggkan(input_channels, num_classes, groups: int = 1, spline_order: int = 3, 
            base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
            grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
            dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-           expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
+           expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
     conv_fun = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
                        base_activation=base_activation, grid_range=grid_range,
-                       dropout=dropout, l1_decay=l1_decay, groups=groups)
+                       dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
     conv_fun_first = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
-                             base_activation=base_activation, grid_range=grid_range, l1_decay=l1_decay)
+                             base_activation=base_activation, grid_range=grid_range, l1_decay=l1_decay, affine=affine)
     kan_fun = partial(mlp_kan, spline_order=spline_order, grid_size=grid_size,
                       base_activation=base_activation, grid_range=grid_range,
                       dropout=dropout_linear, l1_decay=l1_decay)
@@ -134,12 +141,12 @@ def fast_vggkan(input_channels, num_classes, groups: int = 1, grid_size: int = 5
                 grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
                 dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
                 expected_feature_shape: Tuple = (7, 7),
-                width_scale: int = 1):
+                width_scale: int = 1, affine: bool = False):
     conv_fun = partial(fast_kan_conv3x3, grid_size=grid_size,
                        base_activation=base_activation, grid_range=grid_range,
-                       dropout=dropout, l1_decay=l1_decay, groups=groups)
+                       dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
     conv_fun_first = partial(fast_kan_conv3x3, grid_size=grid_size,
-                             base_activation=base_activation, grid_range=grid_range, l1_decay=l1_decay)
+                             base_activation=base_activation, grid_range=grid_range, l1_decay=l1_decay, affine=affine)
     kan_fun = partial(mlp_fastkan, grid_size=grid_size,
                       base_activation=base_activation, grid_range=grid_range,
                       dropout=dropout_linear, l1_decay=l1_decay)
@@ -153,9 +160,9 @@ def fast_vggkan(input_channels, num_classes, groups: int = 1, grid_size: int = 5
 
 def vggkaln(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
             dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
-    conv_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay, groups=groups)
-    conv_fun_first = partial(kaln_conv3x3, degree=degree, l1_decay=l1_decay)
+            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+    conv_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
+    conv_fun_first = partial(kaln_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
     kan_fun = partial(mlp_kaln, degree=degree, dropout=dropout_linear, l1_decay=l1_decay)
 
     features, head = make_layers(cfgs[vgg_type], head_type, conv_fun, conv_fun_first, kan_fun,
@@ -183,10 +190,10 @@ def vggkagn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropo
 
 def vggkacn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
             dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
+            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
     conv_fun = partial(kacn_conv3x3, degree=degree,
-                       dropout=dropout, l1_decay=l1_decay, groups=groups)
-    conv_fun_first = partial(kacn_conv3x3, degree=degree, l1_decay=l1_decay)
+                       dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
+    conv_fun_first = partial(kacn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
     kan_fun = partial(mlp_kacn, degree=degree,
                       dropout=dropout_linear, l1_decay=l1_decay)
 
@@ -197,15 +204,35 @@ def vggkacn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropo
     return VGG(features, head, expected_feature_shape)
 
 
-def moe_vggkagn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
+def moe_vggkagn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
+                l1_decay: float = 0.0,
                 dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1,
-                num_experts: int = 8, noisy_gating: bool = True, k: int = 2):
+                num_experts: int = 8, noisy_gating: bool = True, k: int = 2, affine: bool = False):
     conv_fun = partial(moe_kagn_conv3x3, degree=degree,
                        dropout=dropout, l1_decay=l1_decay, groups=groups,
-                       num_experts=num_experts, noisy_gating=noisy_gating, k=k)
-    conv_fun_first = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay)
+                       num_experts=num_experts, noisy_gating=noisy_gating, k=k, affine=affine)
+    conv_fun_first = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
     kan_fun = partial(mlp_kagn, degree=degree,
+                      dropout=dropout_linear, l1_decay=l1_decay)
+
+    features, head = make_layers(cfgs[vgg_type], head_type, conv_fun, conv_fun_first, kan_fun,
+                                 expected_feature_shape=expected_feature_shape,
+                                 num_input_features=input_channels, num_classes=num_classes, width_scale=width_scale,
+                                 head_dropout=dropout_linear)
+    return VGG(features, head, expected_feature_shape)
+
+
+def vgg_wav_kan(input_channels, num_classes, groups: int = 1,
+                wavelet_type: str = 'mexican_hat', wav_version: str = 'fast',
+                dropout: float = 0.0, l1_decay: float = 0.0,
+                dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
+                expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
+    conv_fun = partial(wav_kan_conv3x3, wavelet_type=wavelet_type, wav_version=wav_version,
+                       dropout=dropout, l1_decay=l1_decay, groups=groups)
+    conv_fun_first = partial(wav_kan_conv3x3, wavelet_type=wavelet_type, wav_version=wav_version,
+                             l1_decay=l1_decay)
+    kan_fun = partial(mlp_wav_kan, wavelet_type=wavelet_type,
                       dropout=dropout_linear, l1_decay=l1_decay)
 
     features, head = make_layers(cfgs[vgg_type], head_type, conv_fun, conv_fun_first, kan_fun,

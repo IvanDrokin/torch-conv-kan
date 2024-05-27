@@ -120,10 +120,11 @@ def test_fastkan_conv_3d(dropout, groups):
     assert out.shape == (bs, output_dim, spatial_dim, spatial_dim, spatial_dim)
 
 
-@pytest.mark.parametrize("dropout, groups, wavelets", itertools.product([0.0, 0.5], [1, 4],
-                                                                        ['mexican_hat', 'morlet',
-                                                                         'dog', 'meyer', 'shannon']))
-def test_wavkan_conv_1d(dropout, groups, wavelets):
+@pytest.mark.parametrize("dropout, groups, wavelets, implementation",
+                         itertools.product([0.0, 0.5], [1, 4],
+                                           ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'],
+                                           ['base', 'fast', 'fast_plus_one']))
+def test_wavkan_conv_1d(dropout, groups, wavelets, implementation):
     bs = 6
     spatial_dim = 32
     input_dim = 4
@@ -133,15 +134,17 @@ def test_wavkan_conv_1d(dropout, groups, wavelets):
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim))
     conv = WavKANConv1DLayer(input_dim, output_dim, kernel_size, groups=groups, padding=padding,
-                             stride=1, dilation=1, wavelet_type=wavelets, dropout=dropout)
+                             stride=1, dilation=1, wavelet_type=wavelets, dropout=dropout,
+                             wav_version=implementation)
     out = conv(input_tensor)
     assert out.shape == (bs, output_dim, spatial_dim)
 
 
-@pytest.mark.parametrize("dropout, groups, wavelets", itertools.product([0.0, 0.5], [1, 4],
-                                                                        ['mexican_hat', 'morlet',
-                                                                         'dog', 'meyer', 'shannon']))
-def test_wavkan_conv_2d(dropout, groups, wavelets):
+@pytest.mark.parametrize("dropout, groups, wavelets, implementation",
+                         itertools.product([0.0, 0.5], [1, 4],
+                                           ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'],
+                                           ['base', 'fast', 'fast_plus_one']))
+def test_wavkan_conv_2d(dropout, groups, wavelets, implementation):
     bs = 6
     spatial_dim = 32
     input_dim = 4
@@ -151,15 +154,17 @@ def test_wavkan_conv_2d(dropout, groups, wavelets):
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim))
     conv = WavKANConv2DLayer(input_dim, output_dim, kernel_size, groups=groups, padding=padding,
-                             stride=1, dilation=1, wavelet_type=wavelets, dropout=dropout)
+                             stride=1, dilation=1, wavelet_type=wavelets, dropout=dropout,
+                             wav_version=implementation)
     out = conv(input_tensor)
     assert out.shape == (bs, output_dim, spatial_dim, spatial_dim)
 
 
-@pytest.mark.parametrize("dropout, groups, wavelets", itertools.product([0.0, 0.5], [1, 4],
-                                                                        ['mexican_hat', 'morlet',
-                                                                         'dog', 'meyer', 'shannon']))
-def test_wavkan_conv_3d(dropout, groups, wavelets):
+@pytest.mark.parametrize("dropout, groups, wavelets, implementation",
+                         itertools.product([0.0, 0.5], [1, 4],
+                                           ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'],
+                                           ['base', 'fast']))
+def test_wavkan_conv_3d(dropout, groups, wavelets, implementation):
     bs = 6
     spatial_dim = 32
     input_dim = 4
@@ -169,7 +174,8 @@ def test_wavkan_conv_3d(dropout, groups, wavelets):
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim, spatial_dim))
     conv = WavKANConv3DLayer(input_dim, output_dim, kernel_size, groups=groups, padding=padding,
-                             stride=1, dilation=1, wavelet_type=wavelets, dropout=dropout)
+                             stride=1, dilation=1, wavelet_type=wavelets, dropout=dropout,
+                             wav_version=implementation)
     out = conv(input_tensor)
     assert out.shape == (bs, output_dim, spatial_dim, spatial_dim, spatial_dim)
 

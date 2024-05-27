@@ -26,7 +26,7 @@ from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer,
 
 class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
     def __init__(self, layers_hidden, dropout: float = 0.0, grid_size=5, spline_order=3, base_activation=nn.GELU,
-                 grid_range: List = [-1, 1], l1_decay: float = 0.0, first_dropout: bool = True):
+                 grid_range: List = [-1, 1], l1_decay: float = 0.0, first_dropout: bool = True, **kwargs):
         super(KAN, self).__init__()  # Initialize the parent nn.Module class
 
         # layers_hidden: A list of integers specifying the number of neurons in each layer
@@ -61,7 +61,7 @@ class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
 
 class KALN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3,
-                 base_activation=nn.SiLU, first_dropout: bool = True):
+                 base_activation=nn.SiLU, first_dropout: bool = True, **kwargs):
         super(KALN, self).__init__()  # Initialize the parent nn.Module class
 
         # layers_hidden: A list of integers specifying the number of neurons in each layer
@@ -101,7 +101,7 @@ class FastKAN(nn.Module):
             use_base_update: bool = True,
             base_activation=nn.SiLU,
             spline_weight_init_scale: float = 0.1,
-            first_dropout: bool = True
+            first_dropout: bool = True, **kwargs
     ) -> None:
         super().__init__()
         self.layers_hidden = layers_hidden
@@ -140,7 +140,7 @@ class FastKAN(nn.Module):
 
 class KACN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0,
-                 degree=3, first_dropout: bool = True):
+                 degree=3, first_dropout: bool = True, **kwargs):
         super(KACN, self).__init__()  # Initialize the parent nn.Module class
 
         # layers_hidden: A list of integers specifying the number of neurons in each layer
@@ -171,7 +171,7 @@ class KACN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
 
 class KAGN(nn.Module):
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3,
-                 base_activation=nn.SiLU, first_dropout: bool = True):
+                 base_activation=nn.SiLU, first_dropout: bool = True, **kwargs):
         super(KAGN, self).__init__()  # Initialize the parent nn.Module class
 
         # layers_hidden: A list of integers specifying the number of neurons in each layer
@@ -204,7 +204,7 @@ class KAGN(nn.Module):
 # TODO: implement
 class WavKAN(nn.Module):
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0,
-                 first_dropout: bool = True, wavelet_type: str = 'mexican_hat'):
+                 first_dropout: bool = True, wavelet_type: str = 'mexican_hat', **kwargs):
         super(WavKAN, self).__init__()  # Initialize the parent nn.Module class
 
         assert wavelet_type in ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'], \

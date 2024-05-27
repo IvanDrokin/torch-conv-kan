@@ -9,7 +9,7 @@ import torch.utils.checkpoint as cp
 from torch import Tensor
 
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
-from .reskanet import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kan_conv3x3, kaln_conv3x3, \
+from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kan_conv3x3, kaln_conv3x3, \
     fast_kan_conv3x3, kacn_conv3x3, kagn_conv1x1, kagn_conv3x3
 from kans import KAN, KALN, KAGN, KACN, FastKAN
 
@@ -111,14 +111,15 @@ class _KANDenseBlock(_DenseBlock):
                  groups: int = 1,
                  l1_decay: float = 0.0,
                  grid_size: int = 5, base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                 grid_range: List = [-1, 1]
+                 grid_range: List = [-1, 1],
+                 **norm_kwargs
                  ):
         conv1x1x1_fun = partial(kan_conv1x1, spline_order=spline_order, grid_size=grid_size,
                                 base_activation=base_activation, grid_range=grid_range,
-                                l1_decay=l1_decay)
+                                l1_decay=l1_decay, **norm_kwargs)
         conv3x3x3_fun = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
                                 base_activation=base_activation, grid_range=grid_range,
-                                l1_decay=l1_decay, groups=groups)
+                                l1_decay=l1_decay, groups=groups, **norm_kwargs)
 
         super(_KANDenseBlock, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
@@ -140,10 +141,11 @@ class _KALNDenseBlock(_DenseBlock):
                  memory_efficient: bool = False,
                  groups: int = 1,
                  l1_decay: float = 0.0,
-                 degree: int = 3
+                 degree: int = 3,
+                 **norm_kwargs
                  ):
-        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, l1_decay=l1_decay)
-        conv3x3x3_fun = partial(kaln_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups)
+        conv1x1x1_fun = partial(kaln_conv1x1, degree=degree, l1_decay=l1_decay, **norm_kwargs)
+        conv3x3x3_fun = partial(kaln_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups, **norm_kwargs)
 
         super(_KALNDenseBlock, self).__init__(conv1x1x1_fun,
                                               conv3x3x3_fun,
@@ -165,10 +167,11 @@ class _KAGNDenseBlock(_DenseBlock):
                  memory_efficient: bool = False,
                  groups: int = 1,
                  l1_decay: float = 0.0,
-                 degree: int = 3
+                 degree: int = 3,
+                 **norm_kwargs
                  ):
-        conv1x1x1_fun = partial(kagn_conv1x1, degree=degree, l1_decay=l1_decay)
-        conv3x3x3_fun = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups)
+        conv1x1x1_fun = partial(kagn_conv1x1, degree=degree, l1_decay=l1_decay, **norm_kwargs)
+        conv3x3x3_fun = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups, **norm_kwargs)
 
         super(_KAGNDenseBlock, self).__init__(conv1x1x1_fun,
                                               conv3x3x3_fun,
@@ -190,10 +193,11 @@ class _KACNDenseBlock(_DenseBlock):
                  memory_efficient: bool = False,
                  groups: int = 1,
                  l1_decay: float = 0.0,
-                 degree: int = 3
+                 degree: int = 3,
+                 **norm_kwargs
                  ):
-        conv1x1x1_fun = partial(kacn_conv1x1, degree=degree, l1_decay=l1_decay)
-        conv3x3x3_fun = partial(kacn_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups)
+        conv1x1x1_fun = partial(kacn_conv1x1, degree=degree, l1_decay=l1_decay, **norm_kwargs)
+        conv3x3x3_fun = partial(kacn_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups, **norm_kwargs)
 
         super(_KACNDenseBlock, self).__init__(conv1x1x1_fun,
                                               conv3x3x3_fun,
@@ -217,12 +221,13 @@ class _FastKANDenseBlock(_DenseBlock):
                  l1_decay: float = 0.0,
                  grid_size: int = 8,
                  grid_range=[-2, 2],
-                 base_activation: nn.Module = nn.SiLU
+                 base_activation: nn.Module = nn.SiLU,
+                 **norm_kwargs
                  ):
         conv1x1x1_fun = partial(fast_kan_conv1x1, grid_range=grid_range, grid_size=grid_size, l1_decay=l1_decay,
-                                base_activation=base_activation)
+                                base_activation=base_activation, **norm_kwargs)
         conv3x3x3_fun = partial(fast_kan_conv3x3, grid_range=grid_range, grid_size=grid_size, l1_decay=l1_decay,
-                                groups=groups, base_activation=base_activation)
+                                groups=groups, base_activation=base_activation, **norm_kwargs)
 
         super(_FastKANDenseBlock, self).__init__(conv1x1x1_fun,
                                                  conv3x3x3_fun,
@@ -427,7 +432,6 @@ class TinyDenseKANet(nn.Module):
             num_features = num_features // 2
 
         # # Final batch norm
-        # self.features.add_module("norm5", nn.BatchNorm2d(num_features))
 
         # Linear layer
         if block_class in (_KANDenseBlock,):
@@ -455,50 +459,50 @@ class TinyDenseKANet(nn.Module):
 def tiny_densekanet(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
                     base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
                     grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
-                    growth_rate: int = 32, num_init_features: int = 64) -> TinyDenseKANet:
+                    growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> TinyDenseKANet:
     return TinyDenseKANet(_KANDenseBlock, input_channels=input_channels, num_classes=num_classes,
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
                           groups=groups, spline_order=spline_order, grid_size=grid_size,
-                          base_activation=base_activation,
+                          base_activation=base_activation, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, memory_efficient=True)
 
 
 def tiny_fast_densekanet(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                          base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
                          grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
-                         growth_rate: int = 32, num_init_features: int = 64) -> TinyDenseKANet:
+                         growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> TinyDenseKANet:
     return TinyDenseKANet(_FastKANDenseBlock, input_channels=input_channels, num_classes=num_classes,
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
-                          groups=groups, grid_size=grid_size, base_activation=base_activation,
+                          groups=groups, grid_size=grid_size, base_activation=base_activation, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, memory_efficient=True)
 
 
 def tiny_densekalnet(input_channels, num_classes, groups: int = 1, degree: int = 3,
                      dropout: float = 0.0, l1_decay: float = 0.0,
-                     growth_rate: int = 32, num_init_features: int = 64) -> TinyDenseKANet:
+                     growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> TinyDenseKANet:
     return TinyDenseKANet(_KALNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
-                          groups=groups, degree=degree,
+                          groups=groups, degree=degree, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, memory_efficient=True
                           )
 
 
 def tiny_densekagnet(input_channels, num_classes, groups: int = 1, degree: int = 3,
                      dropout: float = 0.0, l1_decay: float = 0.0,
-                     growth_rate: int = 32, num_init_features: int = 64) -> TinyDenseKANet:
+                     growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> TinyDenseKANet:
     return TinyDenseKANet(_KAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
-                          groups=groups, degree=degree,
+                          groups=groups, degree=degree, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, memory_efficient=True
                           )
 
 
 def tiny_densekacnet(input_channels, num_classes, groups: int = 1, degree: int = 3,
                      dropout: float = 0.0, l1_decay: float = 0.0,
-                     growth_rate: int = 32, num_init_features: int = 64) -> TinyDenseKANet:
+                     growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> TinyDenseKANet:
     return TinyDenseKANet(_KACNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
-                          groups=groups, degree=degree,
+                          groups=groups, degree=degree, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, memory_efficient=True
                           )
 
@@ -507,11 +511,12 @@ def densekanet121(input_channels, num_classes, groups: int = 1, spline_order: in
                   base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
                   grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
                   use_first_maxpool: bool = True,
-                  growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                  growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KANDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
                       groups=groups, spline_order=spline_order, grid_size=grid_size, base_activation=base_activation,
-                      dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, use_first_maxpool=use_first_maxpool
+                      dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, use_first_maxpool=use_first_maxpool,
+                      affine=affine
                       )
 
 
@@ -519,69 +524,69 @@ def fast_densekanet121(input_channels, num_classes, groups: int = 1, grid_size: 
                   base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
                   grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
                   use_first_maxpool: bool = True,
-                  growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                  growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_FastKANDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
-                      groups=groups, grid_size=grid_size, base_activation=base_activation,
+                      groups=groups, grid_size=grid_size, base_activation=base_activation, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, use_first_maxpool=use_first_maxpool
                       )
 
 
 def densekalnet121(input_channels, num_classes, groups: int = 1, degree: int = 3,
                    dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
-                   growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                   growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KALNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
-                      groups=groups, degree=degree,
+                      groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool
                       )
 
 
 def densekacnet121(input_channels, num_classes, groups: int = 1, degree: int = 3,
                    dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
-                   growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                   growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KACNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
-                      groups=groups, degree=degree,
+                      groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool
                       )
 
 
 def densekagnet121(input_channels, num_classes, groups: int = 1, degree: int = 3,
                    dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
-                   growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                   growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
-                      groups=groups, degree=degree,
+                      groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool
                       )
 
 
 def densekalnet161(input_channels, num_classes, groups: int = 1, degree: int = 3,
                    dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
-                   growth_rate: int = 48, num_init_features: int = 64) -> DenseKANet:
+                   growth_rate: int = 48, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KALNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 36, 24), num_init_features=num_init_features,
-                      groups=groups, degree=degree,
+                      groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool
                       )
 
 
 def densekalnet169(input_channels, num_classes, groups: int = 1, degree: int = 3,
                    dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
-                   growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                   growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KALNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 32, 32), num_init_features=num_init_features,
-                      groups=groups, degree=degree,
+                      groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool
                       )
 
 
 def densekalnet201(input_channels, num_classes, groups: int = 1, degree: int = 3,
                    dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
-                   growth_rate: int = 32, num_init_features: int = 64) -> DenseKANet:
+                   growth_rate: int = 32, num_init_features: int = 64, affine: bool = True) -> DenseKANet:
     return DenseKANet(_KALNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 48, 32), num_init_features=num_init_features,
-                      groups=groups, degree=degree,
+                      groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool
                       )

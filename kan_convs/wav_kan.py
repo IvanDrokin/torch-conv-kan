@@ -111,23 +111,142 @@ class WaveletConvND(nn.Module):
             wavelet = self._forward_shannon(x_scaled)
         else:
             raise ValueError("Unsupported wavelet type")
-        # wavelet_weighted = wavelet * self.wavelet_weights.unsqueeze(0).expand_as(wavelet)
-        # wavelet_output = wavelet_weighted.sum(dim=2)
 
         wavelet_x = torch.split(wavelet, 1, dim=1)
         output = []
         for group_ind, _x in enumerate(wavelet_x):
             y = self.wavelet_weights[group_ind](_x.squeeze(1))
-            output.append(y.clone())
+            # output.append(y.clone())
+            output.append(y)
         y = torch.cat(output, dim=1)
         y = self.wavelet_out(y)
         return y
 
 
+class WaveletConvNDFastPlusOne(WaveletConvND):
+    def __init__(self, conv_class, conv_class_d_plus_one, input_dim, output_dim, kernel_size,
+                 padding=0, stride=1, dilation=1,
+                 ndim: int = 2, wavelet_type='mexican_hat'):
+        super(WaveletConvND, self).__init__()
+
+        assert ndim < 3, "fast_plus_one version suppoerts only 1D and 2D convs"
+
+        _shapes = (1, output_dim, input_dim) + tuple(1 for _ in range(ndim))
+
+        self.scale = nn.Parameter(torch.ones(*_shapes))
+        self.translation = nn.Parameter(torch.zeros(*_shapes))
+
+        self.ndim = ndim
+        self.wavelet_type = wavelet_type
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        kernel_size_plus = (input_dim,) + kernel_size if isinstance(kernel_size, tuple) else (input_dim,) + (
+        kernel_size,) * ndim
+        stride_plus = (1,) + stride if isinstance(stride, tuple) else (1,) + (stride,) * ndim
+        padding_plus = (0,) + padding if isinstance(padding, tuple) else (0,) + (padding,) * ndim
+        dilation_plus = (1,) + dilation if isinstance(dilation, tuple) else (1,) + (dilation,) * ndim
+
+        self.wavelet_weights = conv_class_d_plus_one(output_dim,
+                                                     output_dim,
+                                                     kernel_size_plus,
+                                                     stride_plus,
+                                                     padding_plus,
+                                                     dilation_plus,
+                                                     groups=output_dim,
+                                                     bias=False)
+
+        self.wavelet_out = conv_class(output_dim, output_dim, 1, 1, 0, dilation, groups=1, bias=False)
+
+        nn.init.kaiming_uniform_(self.wavelet_weights.weight, nonlinearity='linear')
+        nn.init.kaiming_uniform_(self.wavelet_out.weight, nonlinearity='linear')
+
+    def forward(self, x):
+        x_expanded = x.unsqueeze(1)
+
+        x_scaled = (x_expanded - self.translation) / self.scale
+
+        if self.wavelet_type == 'mexican_hat':
+            wavelet = self._forward_mexican_hat(x_scaled)
+        elif self.wavelet_type == 'morlet':
+            wavelet = self._forward_morlet(x_scaled)
+        elif self.wavelet_type == 'dog':
+            wavelet = self._forward_dog(x_scaled)
+        elif self.wavelet_type == 'meyer':
+            wavelet = self._forward_meyer(x_scaled)
+        elif self.wavelet_type == 'shannon':
+            wavelet = self._forward_shannon(x_scaled)
+        else:
+            raise ValueError("Unsupported wavelet type")
+        # wavelet_weighted = wavelet * self.wavelet_weights.unsqueeze(0).expand_as(wavelet)
+        # wavelet_output = wavelet_weighted.sum(dim=2)
+
+        y = self.wavelet_weights(wavelet).squeeze(2)
+        y = self.wavelet_out(y)
+        return y
+
+
+class WaveletConvNDFast(WaveletConvND):
+    def __init__(self, conv_class, input_dim, output_dim, kernel_size,
+                 padding=0, stride=1, dilation=1,
+                 ndim: int = 2, wavelet_type='mexican_hat'):
+        super(WaveletConvND, self).__init__()
+
+        _shapes = (1, output_dim, input_dim) + tuple(1 for _ in range(ndim))
+
+        self.scale = nn.Parameter(torch.ones(*_shapes))
+        self.translation = nn.Parameter(torch.zeros(*_shapes))
+
+        self.ndim = ndim
+        self.wavelet_type = wavelet_type
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self.wavelet_weights = conv_class(output_dim * input_dim,
+                                          output_dim,
+                                          kernel_size,
+                                          stride,
+                                          padding,
+                                          dilation,
+                                          groups=output_dim,
+                                          bias=False)
+
+        self.wavelet_out = conv_class(output_dim, output_dim, 1, 1, 0, dilation, groups=1, bias=False)
+
+        nn.init.kaiming_uniform_(self.wavelet_weights.weight, nonlinearity='linear')
+        nn.init.kaiming_uniform_(self.wavelet_out.weight, nonlinearity='linear')
+
+    def forward(self, x):
+        x_expanded = x.unsqueeze(1)
+
+        x_scaled = (x_expanded - self.translation) / self.scale
+
+        if self.wavelet_type == 'mexican_hat':
+            wavelet = self._forward_mexican_hat(x_scaled)
+        elif self.wavelet_type == 'morlet':
+            wavelet = self._forward_morlet(x_scaled)
+        elif self.wavelet_type == 'dog':
+            wavelet = self._forward_dog(x_scaled)
+        elif self.wavelet_type == 'meyer':
+            wavelet = self._forward_meyer(x_scaled)
+        elif self.wavelet_type == 'shannon':
+            wavelet = self._forward_shannon(x_scaled)
+        else:
+            raise ValueError("Unsupported wavelet type")
+        # wavelet_weighted = wavelet * self.wavelet_weights.unsqueeze(0).expand_as(wavelet)
+        # wavelet_output = wavelet_weighted.sum(dim=2)
+
+        y = self.wavelet_weights(wavelet.flatten(1, 2))
+        y = self.wavelet_out(y)
+        return y
+
+
 class WavKANConvNDLayer(nn.Module):
-    def __init__(self, conv_class, norm_class, input_dim, output_dim, kernel_size,
-                 groups=1, padding=0, stride=1, dilation=1,
-                 ndim: int = 2, dropout=0.0, wavelet_type='mexican_hat'):
+    def __init__(self, conv_class, conv_class_plus1, norm_class, input_dim, output_dim, kernel_size,
+                 groups=1, padding=0, stride=1, dilation=1, wav_version: str = 'base',
+                 ndim: int = 2, dropout=0.0, wavelet_type='mexican_hat', **norm_kwargs):
         super(WavKANConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -137,6 +256,7 @@ class WavKANConvNDLayer(nn.Module):
         self.dilation = dilation
         self.groups = groups
         self.ndim = ndim
+        self.norm_kwargs = norm_kwargs
         assert wavelet_type in ['mexican_hat', 'morlet', 'dog', 'meyer', 'shannon'], \
             ValueError(f"Unsupported wavelet type: {wavelet_type}")
         self.wavelet_type = wavelet_type
@@ -164,23 +284,54 @@ class WavKANConvNDLayer(nn.Module):
                                                    dilation,
                                                    groups=1,
                                                    bias=False) for _ in range(groups)])
+        if wav_version == 'base':
+            self.wavelet_conv = nn.ModuleList(
+                [
+                    WaveletConvND(
+                        conv_class,
+                        input_dim // groups,
+                        output_dim // groups,
+                        kernel_size,
+                        stride=stride,
+                        padding=padding,
+                        dilation=dilation,
+                        ndim=ndim, wavelet_type=wavelet_type
+                    ) for _ in range(groups)
+                ]
+            )
+        elif wav_version == 'fast':
+            self.wavelet_conv = nn.ModuleList(
+                [
+                    WaveletConvNDFast(
+                        conv_class,
+                        input_dim // groups,
+                        output_dim // groups,
+                        kernel_size,
+                        stride=stride,
+                        padding=padding,
+                        dilation=dilation,
+                        ndim=ndim, wavelet_type=wavelet_type
+                    ) for _ in range(groups)
+                ]
+            )
+        elif wav_version == 'fast_plus_one':
 
-        self.wavelet_conv = nn.ModuleList(
-            [
-                WaveletConvND(
-                    conv_class,
-                    input_dim // groups,
-                    output_dim // groups,
-                    kernel_size,
-                    stride=stride,
-                    padding=padding,
-                    dilation=dilation,
-                    ndim=ndim, wavelet_type=wavelet_type
-                ) for _ in range(groups)
-            ]
-        )
+            self.wavelet_conv = nn.ModuleList(
+                [
+                    WaveletConvNDFastPlusOne(
+                        conv_class, conv_class_plus1,
+                        input_dim // groups,
+                        output_dim // groups,
+                        kernel_size,
+                        stride=stride,
+                        padding=padding,
+                        dilation=dilation,
+                        ndim=ndim, wavelet_type=wavelet_type
+                    ) for _ in range(groups)
+                ]
+            )
 
-        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups) for _ in range(groups)])
+        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
         self.base_activation = nn.SiLU()
 
@@ -210,23 +361,29 @@ class WavKANConvNDLayer(nn.Module):
 
 class WavKANConv3DLayer(WavKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 dropout=0.0, wavelet_type='mexican_hat'):
-        super(WavKANConv3DLayer, self).__init__(nn.Conv3d, nn.BatchNorm3d, input_dim, output_dim, kernel_size,
+                 dropout=0.0, wavelet_type='mexican_hat', norm_class=nn.BatchNorm3d,
+                 wav_version: str = 'fast', **norm_kwargs):
+        super(WavKANConv3DLayer, self).__init__(nn.Conv3d, None, norm_class, input_dim, output_dim, kernel_size,
                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                                ndim=3, dropout=dropout, wavelet_type=wavelet_type)
+                                                ndim=3, dropout=dropout, wavelet_type=wavelet_type,
+                                                wav_version=wav_version, **norm_kwargs)
 
 
 class WavKANConv2DLayer(WavKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 dropout=0.0, wavelet_type='mexican_hat'):
-        super(WavKANConv2DLayer, self).__init__(nn.Conv2d, nn.BatchNorm2d, input_dim, output_dim, kernel_size,
+                 dropout=0.0, wavelet_type='mexican_hat', norm_class=nn.BatchNorm2d,
+                 wav_version: str = 'fast', **norm_kwargs):
+        super(WavKANConv2DLayer, self).__init__(nn.Conv2d, nn.Conv3d, norm_class, input_dim, output_dim, kernel_size,
                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                                ndim=2, dropout=dropout, wavelet_type=wavelet_type)
+                                                ndim=2, dropout=dropout, wavelet_type=wavelet_type,
+                                                wav_version=wav_version, **norm_kwargs)
 
 
 class WavKANConv1DLayer(WavKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 dropout=0.0, wavelet_type='mexican_hat'):
-        super(WavKANConv1DLayer, self).__init__(nn.Conv1d, nn.BatchNorm1d, input_dim, output_dim, kernel_size,
+                 dropout=0.0, wavelet_type='mexican_hat', norm_class=nn.BatchNorm1d,
+                 wav_version: str = 'fast', **norm_kwargs):
+        super(WavKANConv1DLayer, self).__init__(nn.Conv1d, nn.Conv2d, norm_class, input_dim, output_dim, kernel_size,
                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                                ndim=1, dropout=dropout, wavelet_type=wavelet_type)
+                                                ndim=1, dropout=dropout, wavelet_type=wavelet_type,
+                                                wav_version=wav_version, **norm_kwargs)

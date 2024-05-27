@@ -8,7 +8,7 @@ from torch.nn.functional import conv3d, conv2d, conv1d
 class KALNConvNDLayer(nn.Module):
     def __init__(self, conv_class, norm_class, conv_w_fun, input_dim, output_dim, degree, kernel_size,
                  groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 ndim: int = 2):
+                 ndim: int = 2, **norm_kwargs):
         super(KALNConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -22,6 +22,7 @@ class KALNConvNDLayer(nn.Module):
         self.conv_w_fun = conv_w_fun
         self.ndim = ndim
         self.dropout = None
+        self.norm_kwargs = norm_kwargs
         if dropout > 0:
             if ndim == 1:
                 self.dropout = nn.Dropout1d(p=dropout)
@@ -46,7 +47,7 @@ class KALNConvNDLayer(nn.Module):
                                                    groups=1,
                                                    bias=False) for _ in range(groups)])
 
-        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups) for _ in range(groups)])
+        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
         poly_shape = (groups, output_dim // groups, (input_dim // groups) * (degree + 1)) + tuple(
             kernel_size for _ in range(ndim))
@@ -119,29 +120,29 @@ class KALNConvNDLayer(nn.Module):
 
 class KALNConv3DLayer(KALNConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0):
-        super(KALNConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d, conv3d,
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, **norm_kwargs):
+        super(KALNConv3DLayer, self).__init__(nn.Conv3d, norm_layer, conv3d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=3, dropout=dropout)
+                                              ndim=3, dropout=dropout, **norm_kwargs)
 
 
 class KALNConv2DLayer(KALNConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d):
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, **norm_kwargs):
         super(KALNConv2DLayer, self).__init__(nn.Conv2d, norm_layer, conv2d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=2, dropout=dropout)
+                                              ndim=2, dropout=dropout, **norm_kwargs)
 
 
 class KALNConv1DLayer(KALNConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0):
-        super(KALNConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d, conv1d,
+                 dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, **norm_kwargs):
+        super(KALNConv1DLayer, self).__init__(nn.Conv1d, norm_layer, conv1d,
                                               input_dim, output_dim,
                                               degree, kernel_size,
                                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                              ndim=1, dropout=dropout)
+                                              ndim=1, dropout=dropout, **norm_kwargs)

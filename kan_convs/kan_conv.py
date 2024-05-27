@@ -5,7 +5,8 @@ import torch.nn as nn
 class KANConvNDLayer(nn.Module):
     def __init__(self, conv_class, norm_class, input_dim, output_dim, spline_order, kernel_size,
                  groups=1, padding=0, stride=1, dilation=1,
-                 ndim: int = 2, grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0):
+                 ndim: int = 2, grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0,
+                 **norm_kwargs):
         super(KANConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -19,6 +20,7 @@ class KANConvNDLayer(nn.Module):
         self.grid_size = grid_size
         self.base_activation = base_activation()
         self.grid_range = grid_range
+        self.norm_kwargs = norm_kwargs
 
         self.dropout = None
         if dropout > 0:
@@ -53,7 +55,7 @@ class KANConvNDLayer(nn.Module):
                                                      groups=1,
                                                      bias=False) for _ in range(groups)])
 
-        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups) for _ in range(groups)])
+        self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
         self.prelus = nn.ModuleList([nn.PReLU() for _ in range(groups)])
 
@@ -113,35 +115,35 @@ class KANConvNDLayer(nn.Module):
 
 class KANConv3DLayer(KANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0):
+                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, **norm_kwargs):
         super(KANConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d,
                                              input_dim, output_dim,
                                              spline_order, kernel_size,
                                              groups=groups, padding=padding, stride=stride, dilation=dilation,
                                              ndim=3,
                                              grid_size=grid_size, base_activation=base_activation,
-                                             grid_range=grid_range, dropout=dropout)
+                                             grid_range=grid_range, dropout=dropout, **norm_kwargs)
 
 
 class KANConv2DLayer(KANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0):
+                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, **norm_kwargs):
         super(KANConv2DLayer, self).__init__(nn.Conv2d, nn.InstanceNorm2d,
                                              input_dim, output_dim,
                                              spline_order, kernel_size,
                                              groups=groups, padding=padding, stride=stride, dilation=dilation,
                                              ndim=2,
                                              grid_size=grid_size, base_activation=base_activation,
-                                             grid_range=grid_range, dropout=dropout)
+                                             grid_range=grid_range, dropout=dropout, **norm_kwargs)
 
 
 class KANConv1DLayer(KANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0):
+                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, **norm_kwargs):
         super(KANConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d,
                                              input_dim, output_dim,
                                              spline_order, kernel_size,
                                              groups=groups, padding=padding, stride=stride, dilation=dilation,
                                              ndim=1,
                                              grid_size=grid_size, base_activation=base_activation,
-                                             grid_range=grid_range, dropout=dropout)
+                                             grid_range=grid_range, dropout=dropout, **norm_kwargs)
