@@ -18,6 +18,7 @@ class KACNConvNDLayer(nn.Module):
         self.ndim = ndim
         self.dropout = None
         self.norm_kwargs = norm_kwargs
+        self.epsilon = 1e-7
         if dropout > 0:
             if ndim == 1:
                 self.dropout = nn.Dropout1d(p=dropout)
@@ -53,7 +54,7 @@ class KACNConvNDLayer(nn.Module):
 
         # Apply base activation to input and then linear transform with base weights
         x = torch.tanh(x)
-        x = x.acos().unsqueeze(2)
+        x = torch.acos(torch.clamp(x, -1 + self.epsilon, 1 - self.epsilon)).unsqueeze(2)
         x = (x * self.arange).flatten(1, 2)
         x = x.cos()
         x = self.poly_conv[group_index](x)

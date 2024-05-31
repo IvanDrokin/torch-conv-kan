@@ -11,6 +11,8 @@ import accelerate
 import numpy as np
 import torch
 import torch.utils.checkpoint
+from lion_pytorch import Lion
+
 from accelerate import Accelerator
 from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
@@ -167,15 +169,21 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
     else:
         compiled_model = None
 
-    optimizer_class = torch.optim.AdamW
     params_to_optimize = model.parameters()
-    optimizer = optimizer_class(
-        params_to_optimize,
-        lr=cfg.optim.learning_rate,
-        betas=(cfg.optim.adam_beta1, cfg.optim.adam_beta2),
-        weight_decay=cfg.optim.adam_weight_decay,
-        eps=cfg.optim.adam_epsilon,
-    )
+    if cfg.optim.type == 'adamW':
+        optimizer_class = torch.optim.AdamW
+        optimizer = optimizer_class(
+            params_to_optimize,
+            lr=cfg.optim.learning_rate,
+            betas=(cfg.optim.adam_beta1, cfg.optim.adam_beta2),
+            weight_decay=cfg.optim.adam_weight_decay,
+            eps=cfg.optim.adam_epsilon,
+        )
+    elif cfg.optim.type == 'lion':
+        optimizer = Lion(params_to_optimize,
+                         lr=cfg.optim.learning_rate,
+                         weight_decay=cfg.optim.learning_rate,
+                         use_triton=cfg.optim.use_triton)
 
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,

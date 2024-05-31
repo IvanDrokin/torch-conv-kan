@@ -81,7 +81,8 @@ class KANConvNDLayer(nn.Module):
         x_uns = x.unsqueeze(-1)  # Expand dimensions for spline operations.
         # Compute the basis for the spline using intervals and input values.
         target = x.shape[1:] + self.grid.shape
-        grid = self.grid.view(*list([1 for _ in range(self.ndim + 1)] + [-1, ])).expand(target).contiguous().to(x.device)
+        grid = self.grid.view(*list([1 for _ in range(self.ndim + 1)] + [-1, ])).expand(target).contiguous().to(
+            x.device)
 
         bases = ((x_uns >= grid[..., :-1]) & (x_uns < grid[..., 1:])).to(x.dtype)
 
@@ -115,8 +116,9 @@ class KANConvNDLayer(nn.Module):
 
 class KANConv3DLayer(KANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, **norm_kwargs):
-        super(KANConv3DLayer, self).__init__(nn.Conv3d, nn.InstanceNorm3d,
+                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, norm_layer=nn.InstanceNorm3d,
+                 **norm_kwargs):
+        super(KANConv3DLayer, self).__init__(nn.Conv3d, norm_layer,
                                              input_dim, output_dim,
                                              spline_order, kernel_size,
                                              groups=groups, padding=padding, stride=stride, dilation=dilation,
@@ -127,8 +129,9 @@ class KANConv3DLayer(KANConvNDLayer):
 
 class KANConv2DLayer(KANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, **norm_kwargs):
-        super(KANConv2DLayer, self).__init__(nn.Conv2d, nn.InstanceNorm2d,
+                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, norm_layer=nn.InstanceNorm2d,
+                 **norm_kwargs):
+        super(KANConv2DLayer, self).__init__(nn.Conv2d, norm_layer,
                                              input_dim, output_dim,
                                              spline_order, kernel_size,
                                              groups=groups, padding=padding, stride=stride, dilation=dilation,
@@ -139,8 +142,9 @@ class KANConv2DLayer(KANConvNDLayer):
 
 class KANConv1DLayer(KANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, spline_order=3, groups=1, padding=0, stride=1, dilation=1,
-                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, **norm_kwargs):
-        super(KANConv1DLayer, self).__init__(nn.Conv1d, nn.InstanceNorm1d,
+                 grid_size=5, base_activation=nn.GELU, grid_range=[-1, 1], dropout=0.0, norm_layer=nn.InstanceNorm1d,
+                 **norm_kwargs):
+        super(KANConv1DLayer, self).__init__(nn.Conv1d, norm_layer,
                                              input_dim, output_dim,
                                              spline_order, kernel_size,
                                              groups=groups, padding=padding, stride=stride, dilation=dilation,

@@ -1,18 +1,19 @@
 # @package _global_
-output_dir: "./experiments/tiny-imagenet-vgg19v4/"
-logging_dir: "./experiments/tiny-imagenet-vgg19v4/train_logs/"
-model_name: "vgg19v4-64p-tiny-imagenet"
-gradient_accumulation_steps: 1
+output_dir: "./experiments/vgg11_imagenet/"
+logging_dir: "./experiments/vgg11_imagenet/train_logs/"
+model_name: "vgg11_imagenet"
+gradient_accumulation_steps: 8
 mixed_precision: 'no'
-epochs: 500
-train_batch_size: 256
-val_batch_size: 256
+epochs: 200
+train_batch_size: 16
+val_batch_size: 16
 dataloader_num_workers: 22
 seed: 42
 
-tracking_metric: 'accuracy'
 use_torch_compile: false
-unpack_data: false
+unpack_data: true
+
+tracking_metric: 'accuracy'
 
 max_train_steps: none
 
@@ -27,31 +28,34 @@ metrics:
 
 model:
   groups: 1
-  degree: 6
+  degree: 5
   width_scale: 1
-  dropout: 0.25
+  dropout: 0.15
   dropout_linear: 0.25
   l1_decay: 0
   l2_activation_penalty: 0
   l1_activation_penalty: 0
-  num_classes: 200
+  num_classes: 1000
 
 optim:
-  learning_rate: 1e-5
+  type: 'adamW'
+  learning_rate: 9e-4
   adam_beta1: 0.9
   adam_beta2: 0.999
   adam_weight_decay: 5e-6
   adam_epsilon: 1e-8
   lr_warmup_steps: 7500
-  lr_power: 0.5
+  lr_power: 0.3
   lr_end: 1e-7
   set_grads_to_none: false
-  type: 'lion'
-  use_triton: false
+  use_triton: true
 
 wandb:
   entity: 'add your entity'
-  project_name: 'tiny-imagenet-vgg'
+  project_name: 'imagenet1k-vgg11-eval'
 
 loss:
-  label_smoothing: 0.1
+  label_smoothing: 0.05
+
+visualization:
+  layers: [0, 2, 5, 7, 10, 13]

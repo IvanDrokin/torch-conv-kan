@@ -20,10 +20,12 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/25] U2-net like models added. Fixed a memory leak in ```trainer.py```.
 
 - ✅ [2024/05/27] Updated implementation of WavKAN - much faster now. Added VGG-WavKAN.
+  
+- ✅ [2024/05/31] Fixed KACN Conv instability issue, added Lion optimizer, updated baseline models and benchmarks, and pretrained weights on Imagenet1k released!!!, as well ass Imagenet1k training scripts.
 ### TODO list and next steps
-- [ ] Expand model zoo 
-- [ ] Add more benchmarks
-- [ ] Perform hyperparameters optimisation
+
+- Right now VGG19-like model is training on Imagenet1k
+- Finetuning experiments on other benchmarks in progress, as well as PEFT methods exploration
 
 ---
 ## Table of content:
@@ -76,8 +78,15 @@ Please, take into account that this is preliminary results and more experiments 
 
 ### VGGKAN
 
-We introduce VGGKANs - an VGG like models with KAN convolutions instead of regular one, based on resnet blocks. Main class ```VGG``` could be found ```models/vggkan.py```. 
+We introduce VGGKANs - an VGG like models with KAN convolutions instead of regular one. Main class ```VGG``` could be found ```models/vggkan.py```. Model supports all types of KANs Convolutional layers.
 
+Pretrained on Imagenet1k ckeckpoints:
+
+| Model | Accuracy, top1 | Accuracy, top5 | AUC (ovo) | AUC (ovr) |
+|:--------------:|:--------------:|:--------------:|:---------:|:---------:|
+| [VGG KAGN 11v2](https://huggingface.co/brivangl/vgg_kagn11_v2)|      59.1      |      82.29     |   99.43   |   99.43   |
+
+More checkpoints are coming, stay tuned. Aailable for me computational resources are pretty limited, so it takes some time to train and eval all models.
 
 ### UKANet and U2KANet
 
@@ -86,7 +95,10 @@ We introduce UKANets and U2KANets - an U-net like model with KAN convolutions in
 <a id="item-three"></a>
 ## Performance Metrics
 
-[Baseline models on MNIST and CIFAR10/100](./reports/mnist_cifar_baseline.md)
+[Baseline models on MNIST and CIFAR10/100](./reports/mnist_cifar_baseline.md) TL;DR: 8 layer SimpleKAGNConv achieves 99.68 accuracy on MNIST, 84.32 on CIFAR 10 and 59.27 on CIFAR100. It's best model on all datasets, except CIFAR10: 8 layer SimpleWavKANConv achieves 85.37 accuracy on CIFAR10.
+
+
+[VGG-like in Imagenet1k](./reports/imagenet1k-vggs.md)
 
 <a id="item-four"></a>
 ## Discussion

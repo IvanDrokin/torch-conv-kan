@@ -1,10 +1,10 @@
 # @package _global_
-output_dir: "./runs/cifar10-reskalnet-r/"
-logging_dir: "./runs/cifar10-reskalnet-r/train_logs/"
-model_name: "reskalnet18_32p_cifar10"
+output_dir: "./runs/cifar10-reskalnet101-r/"
+logging_dir: "./runs/cifar10-reskalnet101-r/train_logs/"
+model_name: "reskalnet101_32p_cifar10"
 gradient_accumulation_steps: 1
 mixed_precision: 'no'
-epochs: 150
+epochs: 250
 train_batch_size: 128
 val_batch_size: 128
 dataloader_num_workers: 22
@@ -14,6 +14,9 @@ max_train_steps: none
 
 max_grad_norm: 2.
 
+use_torch_compile: false
+unpack_data: true
+
 checkpointing_steps: 5000
 checkpoints_total_limit: 1000
 find_unused_parameters: false
@@ -22,24 +25,25 @@ metrics:
   report_type: 'classification'
 
 model:
-  groups: 2
+  groups: 1
   degree: 4
-  width_scale: 4
-  dropout: 0.15
-  dropout_linear: 0.25
+  width_scale: 1
+  dropout: 0.1
+  dropout_linear: 0.5
   l1_decay: 5e-5
-  l2_activation_penalty: 5e-6
-  l1_activation_penalty: 1e-6
+  l2_activation_penalty: 1e-5
+  l1_activation_penalty: 1e-5
   num_classes: 10
 
 optim:
-  learning_rate: 1e-4
+  type: 'adamW'
+  learning_rate: 5e-4
   adam_beta1: 0.9
   adam_beta2: 0.999
   adam_weight_decay: 1e-4
   adam_epsilon: 1e-8
   lr_warmup_steps: 1000
-  lr_power: 1
+  lr_power: 0.2
   lr_end: 1e-7
   set_grads_to_none: false
 
@@ -48,4 +52,4 @@ wandb:
   project_name: 'cifar10-kan-convs'
 
 loss:
-  label_smoothing: 0.0
+  label_smoothing: 0.05
