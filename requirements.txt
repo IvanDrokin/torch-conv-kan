@@ -12,3 +12,6 @@ torchinfo
 torchmetrics
 einops
 matplotlib
+huggingface_hub
+lion-pytorch
+imbalanced-learn

@@ -25,7 +25,7 @@ This project introduces and demonstrates the training, validation, and quantizat
 ### TODO list and next steps
 
 - Right now VGG19-like model is training on Imagenet1k
-- Finetuning experiments on other benchmarks in progress, as well as PEFT methods exploration
+- Finetuning experiments on other benchmarks are in progress, as well as PEFT methods exploration
 
 ---
 ## Table of content:
