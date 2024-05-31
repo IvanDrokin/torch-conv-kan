@@ -21,7 +21,7 @@ This project introduces and demonstrates the training, validation, and quantizat
 
 - ✅ [2024/05/27] Updated implementation of WavKAN - much faster now. Added VGG-WavKAN.
   
-- ✅ [2024/05/31] Fixed KACN Conv instability issue, added Lion optimizer, updated baseline models and benchmarks, and :fire::fire::fire:**pretrained weights on Imagenet1k released**:fire::fire::fire:, as well ass Imagenet1k training scripts.
+- ✅ [2024/05/31] Fixed KACN Conv instability issue, added Lion optimizer, updated baseline models and benchmarks, and :fire::fire::fire:**pretrained weights on Imagenet1k are released**:fire::fire::fire:, as well as Imagenet1k training scripts.
 ### TODO list and next steps
 
 - Right now VGG19-like model is training on Imagenet1k
