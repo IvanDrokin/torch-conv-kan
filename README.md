@@ -85,8 +85,9 @@ Pretrained on Imagenet1k ckeckpoints:
 | Model | Accuracy, top1 | Accuracy, top5 | AUC (ovo) | AUC (ovr) |
 |:--------------:|:--------------:|:--------------:|:---------:|:---------:|
 | [VGG KAGN 11v2](https://huggingface.co/brivangl/vgg_kagn11_v2)|      59.1      |      82.29     |   99.43   |   99.43   |
+| [VGG KAGN 11v4](https://huggingface.co/brivangl/vgg_kagn11_v4)|     61.17     |      83.26     |   99.42   |   99.43   |
 
-More checkpoints are coming, stay tuned. Aailable for me computational resources are pretty limited, so it takes some time to train and eval all models.
+More checkpoints are coming, stay tuned. Available for me computational resources are pretty limited, so it takes some time to train and eval all models.
 
 ### UKANet and U2KANet
 
