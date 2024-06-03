@@ -29,29 +29,6 @@ from .metrics import get_metrics
 logger = get_logger(__name__)
 
 
-class BestModel(object):
-    def __init__(self, tracking_metric):
-
-        if tracking_metric in ['accuracy, top5', 'accuracy', 'recall, macro', 'recall, micro',
-                               'f1_score, macro', 'f1_score, micro', 'auc, ovo', 'auc, ovr']:
-
-            self.metric_type = 'higher'
-        self.metric_val = None
-        self.best_model = None
-
-    def compare(self, model, metric):
-        if self.metric_val is None:
-            self.metric_val = metric
-            self.best_model = deepcopy(model)
-        else:
-            if self.metric_type == 'higher' and metric > self.metric_val:
-                self.metric_val = metric
-                self.best_model = deepcopy(model)
-            elif self.metric_type == 'lower' and metric < self.metric_val:
-                self.metric_val = metric
-                self.best_model = deepcopy(model)
-
-
 class OutputHook(list):
     """ Hook to capture module outputs.
     """
@@ -111,8 +88,6 @@ def get_polynomial_decay_schedule_with_warmup(
 
 def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=None, cam_reporter=None):
     logging_dir = Path(cfg.output_dir, cfg.logging_dir)
-
-    best_model = BestModel(cfg.tracking_metric)
 
     accelerator_project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=cfg.find_unused_parameters)
@@ -276,7 +251,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     output = compiled_model(images)
                 else:
                     output = model(images)
-                if isinstance(output, tuple):
+                if cfg.model.is_moe:
                     output, moe_loss = output
                 else:
                     moe_loss = None
@@ -291,12 +266,23 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 l2_penalty *= cfg.model.l2_activation_penalty
                 l1_penalty *= cfg.model.l2_activation_penalty
 
-                loss = loss_func(output, labels) + l1_penalty + l2_penalty
+                if isinstance(output, tuple):
+                    loss = 0.
+                    for _output in output:
+                        loss = loss + loss_func(_output, labels)
+                else:
+                    loss = loss_func(output, labels)
+                loss = loss + l1_penalty + l2_penalty
                 if moe_loss is not None:
                     loss += moe_loss
 
-                acc = metric_acc(output, labels)
-                acc_t5 = metric_acc_top5(output, labels)
+                if isinstance(output, tuple):
+                    acc = metric_acc(output[-1], labels)
+                    acc_t5 = metric_acc_top5(output[-1], labels)
+                else:
+
+                    acc = metric_acc(output, labels)
+                    acc_t5 = metric_acc_top5(output, labels)
 
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
@@ -328,8 +314,10 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
             # We could avoid this line since we set the accelerator with `device_placement=True`.
             with torch.no_grad():
                 predicts = model(images, train=False)
-                if isinstance(predicts, tuple):
+                if cfg.model.is_moe:
                     predicts, _ = predicts
+                if isinstance(predicts, tuple):
+                    predicts = predicts[-1]
                 predicts = torch.softmax(predicts, dim=1)
                 output_hook.clear()
 
@@ -347,8 +335,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
             predictions = np.concatenate(predictions, axis=0)
             metrics = get_metrics(targets, predictions, cfg.metrics)
             accelerator.log(metrics, step=global_step)
-
-            best_model.compare(accelerator.unwrap_model(model), metrics[cfg.tracking_metric])
 
             del targets, predictions
 
@@ -385,64 +371,55 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
         gc.collect()
     # Create the pipeline using using the trained modules and save it.
+
     accelerator.wait_for_everyone()
     if test_dataloader is not None:
-        output_metric = None
-        for model_name, test_model in [("last_model", model), ("best_model", best_model.best_model)]:
 
-            if model_name == 'best_model':
-                test_model = accelerator.prepare(test_model)
+        accelerator.wait_for_everyone()
 
-            predictions = []
-            targets = []
-            for step, batch in enumerate(test_dataloader):
-                images, labels = batch
-                # We could avoid this line since we set the accelerator with `device_placement=True`.
-                with torch.no_grad():
-                    predicts = test_model(images, train=False)
-                    if isinstance(predicts, tuple):
-                        predicts, _ = predicts
-                    predicts = torch.softmax(predicts, dim=1)
-                    output_hook.clear()
+        predictions = []
+        targets = []
+        for step, batch in enumerate(test_dataloader):
+            images, labels = batch
+            # We could avoid this line since we set the accelerator with `device_placement=True`.
+            with torch.no_grad():
+                predicts = model(images, train=False)
+                if cfg.model.is_moe:
+                    predicts, _ = predicts
+                if isinstance(predicts, tuple):
+                    predicts = predicts[-1]
+                predicts = torch.softmax(predicts, dim=1)
+                output_hook.clear()
 
-                all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
-
-                if accelerator.is_main_process:
-                    targets.append(all_targets.detach().cpu().numpy())
-                    predictions.append(all_predictions.detach().cpu().numpy())
+            all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
 
             if accelerator.is_main_process:
-                targets = np.concatenate(targets, axis=0)
-                predictions = np.concatenate(predictions, axis=0)
-                metrics = get_metrics(targets, predictions, cfg.metrics)
+                targets.append(all_targets.detach().cpu().numpy())
+                predictions.append(all_predictions.detach().cpu().numpy())
 
-                if output_metric is None:
-                    output_metric_header = [k for k in metrics.keys()]
-                    values = [[metrics[k] for k in output_metric_header], ]
-                    output_metric = (values, output_metric_header)
-                else:
-                    output_metric[0].append([metrics[k] for k in output_metric[1]])
-                del targets, predictions
-        test_table = wandb.Table(data=output_metric[0], columns=output_metric[1])
-        wandb_tracker = accelerator.get_tracker("wandb")
-        wandb_tracker.log({"test_set_metrics": test_table})
+        accelerator.wait_for_everyone()
+        if accelerator.is_main_process:
+            targets = np.concatenate(targets, axis=0)
+            predictions = np.concatenate(predictions, axis=0)
+            metrics = get_metrics(targets, predictions, cfg.metrics)
+
+            output_metric_header = [k for k in metrics.keys()]
+            values = [[metrics[k] for k in output_metric_header], ]
+
+            if "extra_table_log" in cfg:
+                for k, v in cfg.extra_table_log.items():
+                    output_metric_header.append(k)
+                    values[0].append(v)
+
+            output_metric = (values, output_metric_header)
+
+            del targets, predictions
+
+            test_table = wandb.Table(data=output_metric[0], columns=output_metric[1])
+            wandb_tracker = accelerator.get_tracker("wandb")
+            wandb_tracker.log({"test_set_metrics": test_table})
 
     accelerator.wait_for_everyone()
-    if accelerator.is_main_process:
-        wandb_tracker = accelerator.get_tracker("wandb")
-        model = accelerator.unwrap_model(model)
-        torch.save(model.state_dict(), os.path.join(cfg.output_dir, cfg.model_name + '_last'))
-
-        artifact = wandb.Artifact('model_last', type='model')
-        artifact.add_file(os.path.join(cfg.output_dir, cfg.model_name + '_last'))
-        wandb_tracker.log({"model_last": artifact})
-
-        model = accelerator.unwrap_model(best_model.best_model)
-        torch.save(model.state_dict(), os.path.join(cfg.output_dir, cfg.model_name + '_best'))
-
-        artifact = wandb.Artifact('model_best', type='model')
-        artifact.add_file(os.path.join(cfg.output_dir, cfg.model_name + '_best'))
-        wandb_tracker.log({"model_best": artifact})
 
     accelerator.end_training()
 

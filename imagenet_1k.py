@@ -10,8 +10,8 @@ from torchinfo import summary
 from torchvision.transforms import v2
 from torchvision.transforms.autoaugment import AutoAugmentPolicy
 
-from models import vggkagn
-from train import Classification, train_model, eval_model
+from models import reskagnet50
+from train import Classification, train_model, FocalLoss
 from utils import GradCAMReporter
 
 
@@ -114,44 +114,25 @@ def get_data(cfg):
 
 @hydra.main(version_base=None, config_path="./configs/", config_name="imagenet1k.yaml")
 def main(cfg):
-    # model = moe_reskalnet_50x64p(3, 200, groups=cfg.model.groups,
-    #                              degree=cfg.model.degree, width_scale=cfg.model.width_scale,
-    #                              dropout=cfg.model.dropout, dropout_linear=cfg.model.dropout_linear)
-
-    # model = vggkagn(3,
-    #                 1000,
-    #                 groups=cfg.model.groups,
-    #                 degree=cfg.model.degree,
-    #                 dropout=cfg.model.dropout,
-    #                 l1_decay=cfg.model.l1_decay,
-    #                 dropout_linear=cfg.model.dropout_linear,
-    #                 width_scale=cfg.model.width_scale,
-    #                 vgg_type='VGG11v3',
-    #                 expected_feature_shape=(1, 1),
-    #                 affine=True
-    #                 )
-    model = vggkagn(3,
+    model = reskagnet50(3,
                     1000,
-                    groups=1,
-                    degree=5,
-                    dropout=0.15,
-                    l1_decay=0,
-                    dropout_linear=0.25,
-                    width_scale=2,
-                    vgg_type='VGG11v2',
-                    expected_feature_shape=(1, 1),
+                    groups=cfg.model.groups,
+                    degree=cfg.model.degree,
+                    dropout=cfg.model.dropout,
+                    l1_decay=cfg.model.l1_decay,
+                    dropout_linear=cfg.model.dropout_linear,
+                    width_scale=cfg.model.width_scale,
                     affine=True
                     )
-    model.load_state_dict(torch.load('checkpoints/vggkagn11_v2_imagenet', map_location=torch.device('cpu')))
+
     summary(model, (64, 3, 224, 224), device='cpu')
     dataset_train, dataset_val, dataset_test, cam_reporter = get_data(cfg)
-    loss_func = nn.CrossEntropyLoss(label_smoothing=cfg.loss.label_smoothing)
+    # loss_func = nn.CrossEntropyLoss(label_smoothing=cfg.loss.label_smoothing)
+    loss_func = FocalLoss(gamma=1.5)
 
-    # train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=dataset_test, cam_reporter=cam_reporter)
-    eval_model(model, dataset_test, cfg)
+    train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=None, cam_reporter=None)
+    # eval_model(model, dataset_test, cfg)
 
 
 if __name__ == '__main__':
     main()
-    # dataset = load_dataset("imagenet-1k", cache_dir='./data/imagenet1k', use_auth_token=True, trust_remote_code=True)
-    # train_data, validation_data, test_data = unpack_imagenet(dataset, cache_dir='./data/imagenet1k_unpacked')

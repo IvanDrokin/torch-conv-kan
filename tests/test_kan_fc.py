@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from kans import KANLayer, KALNLayer, ChebyKANLayer, GRAMLayer, FastKANLayer, WavKANLayer
+from kans import KANLayer, KALNLayer, ChebyKANLayer, GRAMLayer, FastKANLayer, WavKANLayer, JacobiKANLayer
 
 
 def test_kan_fc():
@@ -65,6 +65,18 @@ def test_kagn_fc():
 
     input_tensor = torch.rand((bs, input_dim))
     conv = GRAMLayer(input_dim, output_dim, degree, act=nn.SiLU)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim)
+
+
+def test_kajn_fc():
+    bs = 6
+    input_dim = 4
+    output_dim = 16
+    degree = 3
+
+    input_tensor = torch.rand((bs, input_dim))
+    conv = JacobiKANLayer(input_dim, output_dim, degree)
     out = conv(input_tensor)
     assert out.shape == (bs, output_dim)
 

@@ -16,6 +16,7 @@ from kan_convs import MoEKALNConv1DLayer, MoEKALNConv2DLayer, MoEKALNConv3DLayer
 from kan_convs import MoEKANConv1DLayer, MoEKANConv2DLayer, MoEKANConv3DLayer
 from kan_convs import MoEWavKANConv1DLayer, MoEWavKANConv2DLayer, MoEWavKANConv3DLayer
 from kan_convs import WavKANConv1DLayer, WavKANConv2DLayer, WavKANConv3DLayer
+from kan_convs import KAJNConv1DLayer, KAJNConv2DLayer, KAJNConv3DLayer
 
 
 @pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
@@ -183,7 +184,7 @@ def test_wavkan_conv_3d(dropout, groups, wavelets, implementation):
 @pytest.mark.parametrize("dropout, groups, conv_class", itertools.product([0.0, 0.5],
                                                                           [1, 4],
                                                                           [KALNConv1DLayer, KAGNConv1DLayer,
-                                                                           KACNConv1DLayer]))
+                                                                           KACNConv1DLayer, KAJNConv1DLayer]))
 def test_kalgcn_conv_1d(dropout, groups, conv_class):
     bs = 6
     spatial_dim = 32
@@ -202,7 +203,7 @@ def test_kalgcn_conv_1d(dropout, groups, conv_class):
 @pytest.mark.parametrize("dropout, groups, conv_class", itertools.product([0.0, 0.5],
                                                                           [1, 4],
                                                                           [KALNConv2DLayer, KAGNConv2DLayer,
-                                                                           KACNConv2DLayer]))
+                                                                           KACNConv2DLayer, KAJNConv2DLayer]))
 def test_kalgcn_conv_1d(dropout, groups, conv_class):
     bs = 6
     spatial_dim = 32
@@ -221,7 +222,7 @@ def test_kalgcn_conv_1d(dropout, groups, conv_class):
 @pytest.mark.parametrize("dropout, groups, conv_class", itertools.product([0.0, 0.5],
                                                                           [1, 4],
                                                                           [KALNConv3DLayer, KAGNConv3DLayer,
-                                                                           KACNConv3DLayer]))
+                                                                           KACNConv3DLayer, KAJNConv3DLayer]))
 def test_kalgcn_conv_3d(dropout, groups, conv_class):
     bs = 6
     spatial_dim = 32

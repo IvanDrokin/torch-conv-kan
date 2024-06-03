@@ -1,6 +1,6 @@
 # TorchConv KAN: A Convolutional Kolmogorov-Arnold Networks Collection
 
-This project introduces and demonstrates the training, validation, and quantization of the Convolutional KAN model using PyTorch with CUDA acceleration. The `torch-conv-kan` evaluates performance on the MNIST and CIFAR datasets.
+This project introduces and demonstrates the training, validation, and quantization of the Convolutional KAN model using PyTorch with CUDA acceleration. The `torch-conv-kan` evaluates performance on the MNIST, CIFAR, TinyImagenet and Imagenet1k datasets.
 
 ## Project Status: Under Development
 ### Updates
@@ -22,11 +22,14 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/27] Updated implementation of WavKAN - much faster now. Added VGG-WavKAN.
   
 - ✅ [2024/05/31] Fixed KACN Conv instability issue, added Lion optimizer, updated baseline models and benchmarks, and :fire::fire::fire:**pretrained weights on Imagenet1k are released**:fire::fire::fire:, as well as Imagenet1k training scripts.
+  
+- ✅ [2024/06/03] JacobiKAN Convs are available now. 
 ### TODO list and next steps
 
 - Right now VGG19-like model is training on Imagenet1k
+- Right now Resnet50-like model is training on Imagenet1k
 - Finetuning experiments on other benchmarks are in progress, as well as PEFT methods exploration
-
+- I'm working on pruning and visualization methods as well
 ---
 ## Table of content:
  - [Convolutional KAN layers](#item-one)
@@ -54,6 +57,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - The `KAGNConv1DLayer`, `KAGNConv1DLayer`, `KAGNConv1DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network with Gram polynomials instead of B-splines, introduced in [5]. Baseline model implemented in `models/baselines/conv_kagn_baseline.py`.
 
 - The `WavKANConv1DLayer`, `WavKANConv1DLayer`, `WavKANConv1DLayer` classes represents a convolutional layers based on Wavelet Kolmogorov Arnold Network, introduced in [6]. Baseline model implemented in `models/baselines/conv_wavkan_baseline.py`.
+
+- The `KAJNConv1DLayer`, `KAJNConv2DLayer`, `KAJNConv3DLayer` classes represents a convolutional layers based on Jacobi Kolmogorov Arnold Network, introduced in [7] with minor modifications.
 
 <a id="item-two"></a>
 ## Model Zoo
@@ -251,7 +256,7 @@ Contributions are welcome. Please raise issues as necessary.
 <a id="item-eight"></a>
 ## Acknowledgements
 
-This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN) and [WavKAN](https://github.com/zavareh1/Wav-KAN). and we would like to say thanks for their open research and exploration.
+This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN), [WavKAN](https://github.com/zavareh1/Wav-KAN) and [JacobiKAN](https://github.com/SpaceLearner/JacobiKAN). And we would like to say thanks for their open research and exploration.
 
 <a id="item-nine"></a>
 ## References
@@ -262,8 +267,9 @@ This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN
 - [4] https://github.com/SynodicMonth/ChebyKAN
 - [5] https://github.com/Khochawongwat/GRAMKAN
 - [6] https://github.com/zavareh1/Wav-KAN  
-- [7] https://github.com/KindXiaoming/pykan
-- [8] https://github.com/Blealtan/efficient-kan
+- [7] https://github.com/SpaceLearner/JacobiKAN
+- [8] https://github.com/KindXiaoming/pykan
+- [9] https://github.com/Blealtan/efficient-kan
 
 ## Star History
 

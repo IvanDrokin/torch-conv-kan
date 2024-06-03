@@ -21,7 +21,7 @@ from typing import List
 
 import torch.nn as nn
 from utils import L1
-from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer
+from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer
 
 
 class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
@@ -201,6 +201,38 @@ class KAGN(nn.Module):
         return x
 
 
+class KAJN(nn.Module):
+    def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3, a: float = 1, b: float = 1,
+                 base_activation=nn.SiLU, first_dropout: bool = True, **kwargs):
+        super(KAJN, self).__init__()  # Initialize the parent nn.Module class
+
+        # layers_hidden: A list of integers specifying the number of neurons in each layer
+        self.layers_hidden = layers_hidden
+        # polynomial_order: Order up to which Legendre polynomials are calculated
+        self.polynomial_order = degree
+        # list of layers
+        self.layers = nn.ModuleList([])
+        if dropout > 0 and first_dropout:
+            self.layers.append(nn.Dropout(p=dropout))
+        self.base_activation = base_activation
+        self.num_layers = len(layers_hidden[:-1])
+
+        for i, (in_features, out_features) in enumerate(zip(layers_hidden[:-1], layers_hidden[1:])):
+            # Base weight for linear transformation in each layer
+            layer = JacobiKANLayer(in_features, out_features, degree, a=a, b=b)
+            if l1_decay > 0 and i != self.num_layers - 1:
+                layer = L1(layer, l1_decay)
+            self.layers.append(layer)
+
+            if dropout > 0 and i != self.num_layers - 1:
+                self.layers.append(nn.Dropout(p=dropout))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 # TODO: implement
 class WavKAN(nn.Module):
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0,
@@ -255,6 +287,11 @@ def mlp_kaln(layers_hidden, dropout: float = 0.0, degree: int = 3,
 
 def mlp_kacn(layers_hidden, dropout: float = 0.0, degree: int = 3, l1_decay: float = 0.0) -> KACN:
     return KACN(layers_hidden, dropout=dropout, degree=degree, l1_decay=l1_decay)
+
+
+def mlp_kajn(layers_hidden, dropout: float = 0.0, degree: int = 3, l1_decay: float = 0.0,
+             a: float = 1.0, b: float = 1.0) -> KAJN:
+    return KAJN(layers_hidden, dropout=dropout, degree=degree, l1_decay=l1_decay, a=a, b=b)
 
 
 def mlp_kagn(layers_hidden, dropout: float = 0.0, degree: int = 3,

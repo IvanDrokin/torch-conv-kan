@@ -1,12 +1,12 @@
 # @package _global_
-output_dir: "./experiments/vgg11_imagenet/"
-logging_dir: "./experiments/vgg11_imagenet/train_logs/"
-model_name: "vgg11_imagenet"
+output_dir: "./experiments/reskagnet50_imagenet/"
+logging_dir: "./experiments/reskagnet50_imagenet/train_logs/"
+model_name: "reskagnet50_imagenet"
 gradient_accumulation_steps: 8
 mixed_precision: 'no'
 epochs: 200
-train_batch_size: 16
-val_batch_size: 16
+train_batch_size: 14
+val_batch_size: 14
 dataloader_num_workers: 22
 seed: 42
 
@@ -29,13 +29,14 @@ metrics:
 model:
   groups: 1
   degree: 5
-  width_scale: 1
+  width_scale: 2
   dropout: 0.15
   dropout_linear: 0.25
   l1_decay: 0
   l2_activation_penalty: 0
   l1_activation_penalty: 0
   num_classes: 1000
+  is_moe: false
 
 optim:
   type: 'adamW'
@@ -52,7 +53,7 @@ optim:
 
 wandb:
   entity: 'add your entity'
-  project_name: 'imagenet1k-vgg11-eval'
+  project_name: 'imagenet1k-reskagnet50'
 
 loss:
   label_smoothing: 0.05

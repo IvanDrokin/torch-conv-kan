@@ -6,8 +6,8 @@ from torch import Tensor, flatten
 
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
 from kans import KAN, KALN, KACN, KAGN, FastKAN
-from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3, moe_kaln_conv3x3
 from .model_utils import kan_conv1x1, kagn_conv1x1, kacn_conv1x1, kaln_conv1x1, fast_kan_conv1x1
+from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3, moe_kaln_conv3x3
 
 
 class BasicBlockTemplate(nn.Module):
@@ -957,6 +957,25 @@ def reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: int =
                      dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
                      hidden_layer_dim=None, affine: bool = False):
     return ResKANet(KALNBottleneck, [3, 4, 6, 3],
+                    input_channels=input_channels,
+                    use_first_maxpool=True,
+                    fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
+                    num_classes=num_classes,
+                    groups=groups,
+                    width_per_group=64,
+                    degree=degree,
+                    width_scale=width_scale,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay,
+                    hidden_layer_dim=hidden_layer_dim,
+                    affine=affine)
+
+
+def reskagnet50(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
+                hidden_layer_dim=None, affine: bool = True):
+    return ResKANet(KAGNBottleneck, [3, 4, 6, 3],
                     input_channels=input_channels,
                     use_first_maxpool=True,
                     fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
