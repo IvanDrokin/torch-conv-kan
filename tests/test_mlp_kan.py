@@ -4,7 +4,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from kans import KAN, KALN, KACN, KAGN, FastKAN, WavKAN, KAJN
+from kans import KAN, KALN, KACN, KAGN, FastKAN, WavKAN, KAJN, KABN
 
 
 @pytest.mark.parametrize("dropout, first_dropout, l1_decay",
@@ -129,6 +129,24 @@ def test_kacn(dropout, first_dropout, l1_decay):
     layers_hidden = [input_dim, hidden_dim, num_classes]
 
     conv = KACN(layers_hidden, degree=degree, dropout=dropout,
+                l1_decay=l1_decay, first_dropout=first_dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, num_classes)
+
+
+@pytest.mark.parametrize("dropout, first_dropout, l1_decay",
+                         itertools.product([0.0, 0.5], [True, False], [0, 0.1]))
+def test_kabn(dropout, first_dropout, l1_decay):
+    bs = 6
+    hidden_dim = 64
+    input_dim = 32
+    degree = 3
+    num_classes = 128
+
+    input_tensor = torch.rand((bs, input_dim))
+    layers_hidden = [input_dim, hidden_dim, num_classes]
+
+    conv = KABN(layers_hidden, degree=degree, dropout=dropout,
                 l1_decay=l1_decay, first_dropout=first_dropout)
     out = conv(input_tensor)
     assert out.shape == (bs, num_classes)

@@ -21,7 +21,7 @@ from typing import List
 
 import torch.nn as nn
 from utils import L1
-from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer
+from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer, BernsteinKANLayer
 
 
 class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
@@ -201,6 +201,38 @@ class KAGN(nn.Module):
         return x
 
 
+class KABN(nn.Module):
+    def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3,
+                 base_activation=nn.SiLU, first_dropout: bool = True, **kwargs):
+        super(KABN, self).__init__()  # Initialize the parent nn.Module class
+
+        # layers_hidden: A list of integers specifying the number of neurons in each layer
+        self.layers_hidden = layers_hidden
+        # polynomial_order: Order up to which Legendre polynomials are calculated
+        self.polynomial_order = degree
+        # list of layers
+        self.layers = nn.ModuleList([])
+        if dropout > 0 and first_dropout:
+            self.layers.append(nn.Dropout(p=dropout))
+        self.base_activation = base_activation
+        self.num_layers = len(layers_hidden[:-1])
+
+        for i, (in_features, out_features) in enumerate(zip(layers_hidden[:-1], layers_hidden[1:])):
+            # Base weight for linear transformation in each layer
+            layer = BernsteinKANLayer(in_features, out_features, degree, act=base_activation)
+            if l1_decay > 0 and i != self.num_layers - 1:
+                layer = L1(layer, l1_decay)
+            self.layers.append(layer)
+
+            if dropout > 0 and i != self.num_layers - 1:
+                self.layers.append(nn.Dropout(p=dropout))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 class KAJN(nn.Module):
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3, a: float = 1, b: float = 1,
                  base_activation=nn.SiLU, first_dropout: bool = True, **kwargs):
@@ -219,7 +251,7 @@ class KAJN(nn.Module):
 
         for i, (in_features, out_features) in enumerate(zip(layers_hidden[:-1], layers_hidden[1:])):
             # Base weight for linear transformation in each layer
-            layer = JacobiKANLayer(in_features, out_features, degree, a=a, b=b)
+            layer = JacobiKANLayer(in_features, out_features, degree, a=a, b=b, act=base_activation)
             if l1_decay > 0 and i != self.num_layers - 1:
                 layer = L1(layer, l1_decay)
             self.layers.append(layer)
@@ -283,6 +315,11 @@ def mlp_fastkan(layers_hidden, dropout: float = 0.0, grid_size: int = 5, base_ac
 def mlp_kaln(layers_hidden, dropout: float = 0.0, degree: int = 3,
              base_activation: nn.Module = nn.GELU, l1_decay: float = 0.0) -> KALN:
     return KALN(layers_hidden, dropout=dropout, base_activation=base_activation, degree=degree, l1_decay=l1_decay)
+
+
+def mlp_kabn(layers_hidden, dropout: float = 0.0, degree: int = 3,
+             base_activation: nn.Module = nn.GELU, l1_decay: float = 0.0) -> KABN:
+    return KABN(layers_hidden, dropout=dropout, base_activation=base_activation, degree=degree, l1_decay=l1_decay)
 
 
 def mlp_kacn(layers_hidden, dropout: float = 0.0, degree: int = 3, l1_decay: float = 0.0) -> KACN:

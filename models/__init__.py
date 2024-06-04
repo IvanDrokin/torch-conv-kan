@@ -9,7 +9,7 @@ from .baselines.conv_wavkan_baseline import SimpleConvWavKAN, EightSimpleConvWav
 from .reskanet import reskanet_18x32p, reskacnet_18x32p, fast_reskanet_18x32p, reskalnet_18x32p, reskalnet_18x64p, \
     reskalnet_50x64p, moe_reskalnet_50x64p, reskalnet_101x64p, moe_reskalnet_101x64p, \
     reskalnet_152x64p, moe_reskalnet_152x64p, moe_reskalnet_18x64p, reskalnet_101x32p, \
-    reskalnet_152x32p, reskagnet_101x64p, reskagnet_18x32p, reskagnet50
+    reskalnet_152x32p, reskagnet_101x64p, reskagnet_18x32p, reskagnet50, reskagnet18
 from .densekanet import densekanet121, densekalnet121, densekacnet121, densekagnet121, fast_densekanet121
 from .densekanet import densekalnet161, densekalnet169, densekalnet201
 from .densekanet import tiny_densekanet, tiny_densekalnet, tiny_densekacnet, tiny_fast_densekanet, tiny_densekagnet

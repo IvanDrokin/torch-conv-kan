@@ -155,9 +155,12 @@ class KAGNBasicBlock(BasicBlockTemplate):
                  dilation: int = 1,
                  dropout: float = 0.0,
                  l1_decay: float = 0.0,
+                 norm_layer: nn.Module = nn.InstanceNorm2d,
                  **norm_kwargs):
-        conv1x1x1_fun = partial(kagn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay, **norm_kwargs)
-        conv3x3x3_fun = partial(kagn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay, **norm_kwargs)
+        conv1x1x1_fun = partial(kagn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
+        conv3x3x3_fun = partial(kagn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
 
         super(KAGNBasicBlock, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
@@ -352,12 +355,15 @@ class KAGNBottleneck(BottleneckTemplate):
                  dilation: int = 1,
                  dropout: float = 0.0,
                  l1_decay: float = 0.0,
+                 norm_layer: nn.Module = nn.InstanceNorm2d,
                  **norm_kwargs):
-        conv1x1x1_fun = partial(kagn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay, **norm_kwargs)
-        conv3x3x3_fun = partial(kagn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay, **norm_kwargs)
+        conv1x1_fun = partial(kagn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
+        conv3x3_fun = partial(kagn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
 
-        super(KAGNBottleneck, self).__init__(conv1x1x1_fun,
-                                             conv3x3x3_fun,
+        super(KAGNBottleneck, self).__init__(conv1x1_fun,
+                                             conv3x3_fun,
                                              inplanes=inplanes,
                                              planes=planes,
                                              stride=stride,
@@ -894,6 +900,25 @@ def reskagnet_18x32p(input_channels, num_classes, groups: int = 1, degree: int =
                     )
 
 
+def reskagnet18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0,
+                dropout_linear: float = 0.25, affine: bool = False):
+    return ResKANet(KAGNBasicBlock, [2, 2, 2, 2],
+                    input_channels=input_channels,
+                    use_first_maxpool=True,
+                    fcnv_kernel_size=7, fcnv_stride=2, fcnv_padding=3,
+                    num_classes=num_classes,
+                    groups=groups,
+                    width_per_group=64,
+                    degree=degree,
+                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay,
+                    affine=affine
+                    )
+
+
 def reskalnet_18x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                      hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0,
                      dropout_linear: float = 0.25, affine: bool = False):
@@ -978,7 +1003,7 @@ def reskagnet50(input_channels, num_classes, groups: int = 1, degree: int = 3, w
     return ResKANet(KAGNBottleneck, [3, 4, 6, 3],
                     input_channels=input_channels,
                     use_first_maxpool=True,
-                    fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
+                    fcnv_kernel_size=7, fcnv_stride=2, fcnv_padding=3,
                     num_classes=num_classes,
                     groups=groups,
                     width_per_group=64,

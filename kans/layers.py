@@ -405,7 +405,7 @@ class WavKANLayer(nn.Module):
 
 
 class JacobiKANLayer(nn.Module):
-    def __init__(self, input_dim, output_dim, degree, a=1.0, b=1.0):
+    def __init__(self, input_dim, output_dim, degree, a=1.0, b=1.0, act=nn.SiLU):
         super(JacobiKANLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -413,6 +413,7 @@ class JacobiKANLayer(nn.Module):
         self.b = b
         self.degree = degree
 
+        self.act = act()
         self.norm = nn.LayerNorm(output_dim, dtype=torch.float32)
 
         self.base_weights = nn.Parameter(
@@ -422,6 +423,7 @@ class JacobiKANLayer(nn.Module):
         self.jacobi_coeffs = nn.Parameter(torch.empty(input_dim, output_dim, degree + 1))
 
         nn.init.normal_(self.jacobi_coeffs, mean=0.0, std=1 / (input_dim * (degree + 1)))
+        nn.init.xavier_uniform_(self.base_weights)
 
     def forward(self, x):
         x = torch.reshape(x, (-1, self.inputdim))  # shape = (batch_size, inputdim)
@@ -445,6 +447,66 @@ class JacobiKANLayer(nn.Module):
                                                                                                   i - 2].clone()
         # Compute the Jacobian interpolation
         y = torch.einsum('bid,iod->bo', jacobi, self.jacobi_coeffs)  # shape = (batch_size, outdim)
+        y = y.view(-1, self.outdim)
+
+        y = self.act(self.norm(y + basis))
+        return y
+
+
+class BernsteinKANLayer(nn.Module):
+    def __init__(self, input_dim, output_dim, degree, act=nn.SiLU):
+        super(BernsteinKANLayer, self).__init__()
+        self.inputdim = input_dim
+        self.outdim = output_dim
+        self.degree = degree
+
+        self.norm = nn.LayerNorm(output_dim, dtype=torch.float32)
+
+        self.base_weights = nn.Parameter(
+            torch.zeros(output_dim, input_dim, dtype=torch.float32)
+        )
+
+        self.bernstein_coeffs = nn.Parameter(torch.empty(input_dim, output_dim, degree + 1))
+
+        self.act = act()
+
+        nn.init.normal_(self.bernstein_coeffs, mean=0.0, std=1 / (input_dim * (degree + 1)))
+        nn.init.xavier_uniform_(self.base_weights)
+
+    # @staticmethod
+    # def combo(n, k):
+    #     return ((n + 1).lgamma() - (k + 1).lgamma() - ((n - k) + 1).lgamma()).exp()
+    #
+    # @lru_cache(maxsize=128)
+    # def bernstein_poly(self, x, degree):
+    #
+    #     bernsteins = []
+    #     for i in range(0, degree + 1):
+    #         bernstein_poly = self.combo(torch.tensor(degree), self.combo(torch.tensor(i)) * torch.pow(1. - x, degree - i) * torch.pow(x, i)
+    #         bernsteins.append(bernstein_poly)
+    #
+    #     return torch.stack(bernsteins, dim=-1)
+
+    @lru_cache(maxsize=128)
+    def bernstein_poly(self, x, degree):
+
+        bernsteins = torch.ones(x.shape + (self.degree + 1, ), dtype=x.dtype, device=x.device)
+        for j in range(1, degree + 1):
+            for k in range(degree + 1 - j):
+                bernsteins[..., k] = bernsteins[..., k] * (1 - x) + bernsteins[..., k + 1] * x
+        return bernsteins
+
+    def forward(self, x):
+        x = torch.reshape(x, (-1, self.inputdim))  # shape = (batch_size, inputdim)
+
+        basis = F.linear(self.act(x), self.base_weights)
+
+        # Since Bernstein polynomial is defined in [0, 1]
+        # We need to normalize x to [0, 1] using sigmoid
+        x = torch.sigmoid(x)
+
+        bernsteins = self.bernstein_poly(x, self.degree)
+        y = torch.einsum('bid,iod->bo', bernsteins, self.bernstein_coeffs)  # shape = (batch_size, outdim)
         y = y.view(-1, self.outdim)
 
         y = self.act(self.norm(y + basis))

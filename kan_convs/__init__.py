@@ -5,6 +5,7 @@ from .kacn_conv import KACNConv1DLayer, KACNConv2DLayer, KACNConv3DLayer
 from .kagn_conv import KAGNConv1DLayer, KAGNConv2DLayer, KAGNConv3DLayer
 from .wav_kan import WavKANConv1DLayer, WavKANConv2DLayer, WavKANConv3DLayer
 from .kajn_conv import KAJNConv1DLayer, KAJNConv2DLayer, KAJNConv3DLayer
+from .kabn_conv import KABNConv1DLayer, KABNConv2DLayer, KABNConv3DLayer
 
 from .moe_kan import MoEKACNConv1DLayer, MoEKACNConv2DLayer, MoEKACNConv3DLayer
 from .moe_kan import MoEKALNConv1DLayer, MoEKALNConv2DLayer, MoEKALNConv3DLayer

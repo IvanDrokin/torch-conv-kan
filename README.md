@@ -24,6 +24,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - ✅ [2024/05/31] Fixed KACN Conv instability issue, added Lion optimizer, updated baseline models and benchmarks, and :fire::fire::fire:**pretrained weights on Imagenet1k are released**:fire::fire::fire:, as well as Imagenet1k training scripts.
   
 - ✅ [2024/06/03] JacobiKAN Convs are available now. 
+  
+- ✅ [2024/06/05] BernsteinKANs, and BernsteinKAN Convs are available now. 
 ### TODO list and next steps
 
 - Right now VGG19-like model is training on Imagenet1k
@@ -59,6 +61,8 @@ This project introduces and demonstrates the training, validation, and quantizat
 - The `WavKANConv1DLayer`, `WavKANConv1DLayer`, `WavKANConv1DLayer` classes represents a convolutional layers based on Wavelet Kolmogorov Arnold Network, introduced in [6]. Baseline model implemented in `models/baselines/conv_wavkan_baseline.py`.
 
 - The `KAJNConv1DLayer`, `KAJNConv2DLayer`, `KAJNConv3DLayer` classes represents a convolutional layers based on Jacobi Kolmogorov Arnold Network, introduced in [7] with minor modifications.
+
+- We introduce the `KABNConv1DLayer`, `KABNConv2DLayer`, `KABNConv3DLayer` classes represents a convolutional layers based on Bernstein Kolmogorov Arnold Network.
 
 <a id="item-two"></a>
 ## Model Zoo
