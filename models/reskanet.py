@@ -510,6 +510,7 @@ class ResKANet(nn.Module):
             replace_stride_with_dilation: Optional[List[bool]] = None,
             dropout_linear: float = 0.25,
             hidden_layer_dim: int = None,
+            norm_layer: nn.Module = nn.InstanceNorm2d,
             **kan_kwargs
     ) -> None:
         super().__init__()
@@ -563,7 +564,8 @@ class ResKANet(nn.Module):
             self.fc = KALN(fc_layers, **kan_kwargs_fc)
         elif block in (KAGNBasicBlock, KAGNBottleneck):
             self.conv1 = KAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
+                                         stride=fcnv_stride, padding=fcnv_padding,
+                                         norm_layer=norm_layer, **kan_kwargs_clean)
             self.fc = KAGN(fc_layers, **kan_kwargs_fc)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
@@ -575,14 +577,15 @@ class ResKANet(nn.Module):
         if use_first_maxpool:
             self.maxpool = nn.MaxPool2d(kernel_size=mp_kernel_size, stride=mp_stride, padding=mp_padding)
 
-        self.layer1 = self._make_layer(block, 8 * width_scale, layers[0], **kan_kwargs)
-        self.layer2 = self._make_layer(block, 16 * width_scale, layers[1], stride=2,
+        self.layer1 = self._make_layer(block, 8 * width_scale, layers[0],
+                                         norm_layer=norm_layer, **kan_kwargs)
+        self.layer2 = self._make_layer(block, 16 * width_scale, layers[1], stride=2,norm_layer=norm_layer,
                                        dilate=replace_stride_with_dilation[0],
                                        **kan_kwargs)
-        self.layer3 = self._make_layer(block, 32 * width_scale, layers[2], stride=2,
+        self.layer3 = self._make_layer(block, 32 * width_scale, layers[2], stride=2,norm_layer=norm_layer,
                                        dilate=replace_stride_with_dilation[1],
                                        **kan_kwargs)
-        self.layer4 = self._make_layer(block, 64 * width_scale, layers[3], stride=2,
+        self.layer4 = self._make_layer(block, 64 * width_scale, layers[3], stride=2,norm_layer=norm_layer,
                                        dilate=replace_stride_with_dilation[2],
                                        **kan_kwargs)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -902,7 +905,7 @@ def reskagnet_18x32p(input_channels, num_classes, groups: int = 1, degree: int =
 
 def reskagnet18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                 hidden_layer_dim=None, dropout: float = 0.0, l1_decay: float = 0.0,
-                dropout_linear: float = 0.25, affine: bool = False):
+                dropout_linear: float = 0.25, affine: bool = False, norm_layer: nn.Module = nn.InstanceNorm2d):
     return ResKANet(KAGNBasicBlock, [2, 2, 2, 2],
                     input_channels=input_channels,
                     use_first_maxpool=True,
@@ -911,10 +914,12 @@ def reskagnet18(input_channels, num_classes, groups: int = 1, degree: int = 3, w
                     groups=groups,
                     width_per_group=64,
                     degree=degree,
-                    width_scale=width_scale, hidden_layer_dim=hidden_layer_dim,
+                    width_scale=width_scale,
+                    hidden_layer_dim=hidden_layer_dim,
                     dropout=dropout,
                     dropout_linear=dropout_linear,
                     l1_decay=l1_decay,
+                    norm_layer=norm_layer,
                     affine=affine
                     )
 
