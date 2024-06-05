@@ -1004,7 +1004,7 @@ def reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: int =
 
 def reskagnet50(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                 dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
-                hidden_layer_dim=None, affine: bool = True):
+                hidden_layer_dim=None, affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     return ResKANet(KAGNBottleneck, [3, 4, 6, 3],
                     input_channels=input_channels,
                     use_first_maxpool=True,
@@ -1018,6 +1018,7 @@ def reskagnet50(input_channels, num_classes, groups: int = 1, degree: int = 3, w
                     dropout_linear=dropout_linear,
                     l1_decay=l1_decay,
                     hidden_layer_dim=hidden_layer_dim,
+                    norm_layer=norm_layer,
                     affine=affine)
 
 

@@ -34,7 +34,7 @@ This project introduces and demonstrates the training, validation, and quantizat
 - I'm working on pruning and visualization methods as well
 ---
 ## Table of content:
- - [Convolutional KAN layers](#item-one)
+ - [Introducing Convolutional KAN layers](#item-one)
  - [Model Zoo](#item-two)
  - [Performance Metrics](#item-three)
  - [Discussion](#item-four)
@@ -47,6 +47,42 @@ This project introduces and demonstrates the training, validation, and quantizat
 
 <a id="item-one"></a>
 ## Introducing Convolutional KAN layers
+
+Kolmogorov-Arnold networks rely on Kolmogorov-Arnold representation theorem:
+
+![Kolmogorov-Arnold representation theorem](assets/math/kart.png)
+
+So, from this formula the authors of [KAN: Kolmogorov-Arnold Networks](https://arxiv.org/abs/2404.19756) derived the new architecture: learnable activations on edges and summation on nodes. MLP in opposite performs fixed non-linearity on nodes and learnable linear projections on edges. 
+
+![KAN vs MLP](assets/math/mlp_vs_kans.png)
+
+In convolutional layer, a filter or a kernel "slides" over the 2D input data, performing an elementwise multiplication. The results are summed up into a single output pixel. The kernel performs the same operation for every location it slides over, transforming a 2D (1D or 3D) matrix of features into a different one. Although 1D and 3D convolutions share the same concept, they have different filters, input data, and output data dimensions. However, we'll focus on 2D for simplicity.
+
+Typically, after a convolutional layer, a normalization layer (like BatchNorm, InstanceNorm, etc.) and non-linear activations (ReLU, LeakyReLU, SiLU, and many more) are applied.
+
+More formal: suppose we have an input image y, with N x N size. We omit channel axis for simplicity, it adds another summations sign. So, first we need to convolve it with out kernel W with size m x m:
+
+![convolutional operation](assets/math/conv.png)
+
+Then, we apply batch norm and non-linearity, for example - ReLU:
+
+![batch norm and non-linearity](assets/math/nonlin.png)
+
+Kolmogorov-Arnold Convolutions work slightly differently: the kernel consists of a set of univariate non-linear functions. This kernel "slides" over the 2D input data, performing element-wise application of the kernel's functions. The results are then summed up into a single output pixel. More formal: suppose we have an input image y (again), with N x N size. We omit channel axis for simplicity, it adds another summations sign. So, the KAN-based convolutions defined as:
+
+![Kolmogorov-Arnold Convolutions](assets/math/kan_convs.png)
+
+And each phi is a univariate non-linear learnable function. In original paper, the authors propose to use this form of the functions:
+
+![Kolmogorov-Arnold Phi](assets/math/spline.png)
+
+And authors propose to choose SiLU as b(x) activation: 
+
+![Kolmogorov-Arnold SiLU](assets/math/silu.png)
+
+To sum up, the "traditional" convolution is a matrix of weights, while Kolmogorov-Arnold convolutions are a set of functions. That's the primary difference. The key question here is - how should we construct these univariate non-linear functions? The answer is the same as for KANs: B-splines, polynomials, RBFs, Wavelets, etc.
+
+In this repository, implementation of the following layers presented:
 
 - The `KANConv1DLayer`, `KANConv2DLayer`, `KANConv3DLayer` classes represents a convolutional layers based on Kolmogorov Arnold Network, introduced in [1]. Baseline model implemented in `models/baselines/conv_kan_baseline.py`.
 
