@@ -339,26 +339,35 @@ class U2KANetSmall(nn.Module):
 
 
 def u2kagnet(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-             dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True):
-    conf_fun = partial(kagn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine)
-    conf_fun_first = partial(kagn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine)
+             dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True,
+             norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(kagn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(kagn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANet(conf_fun, conf_fun_first=conf_fun_first,
                    in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
 
 def u2kalnet(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-             dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True):
-    conf_fun = partial(kaln_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine)
-    conf_fun_first = partial(kaln_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine)
+             dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True,
+             norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(kaln_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(kaln_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANet(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
 
 def u2kacnet(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-             dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True):
-    conf_fun = partial(kacn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine)
-    conf_fun_first = partial(kacn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine)
+             dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True,
+             norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(kacn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(kacn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANet(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
@@ -366,11 +375,13 @@ def u2kacnet(input_channels, num_classes, groups: int = 1, degree: int = 3, widt
 def u2kanet(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
             base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
             grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0, width_scale: int = 1,
-            affine: bool = True):
+            affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     conf_fun = partial(kan_conv3x3, spline_order=spline_order, groups=groups, grid_size=grid_size, dropout=dropout,
-                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                       norm_layer=norm_layer)
     conf_fun_first = partial(kan_conv3x3, spline_order=spline_order, groups=1, grid_size=grid_size, dropout=dropout,
-                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANet(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
@@ -378,37 +389,47 @@ def u2kanet(input_channels, num_classes, groups: int = 1, spline_order: int = 3,
 def fast_u2kanet(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                  base_activation: Optional[Callable[..., nn.Module]] = nn.SiLU,
                  grid_range: List = [-2, 2], dropout: float = 0.0, l1_decay: float = 0.0, width_scale: int = 1,
-                 affine: bool = True):
+                 affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     conf_fun = partial(fast_kan_conv3x3, groups=groups, grid_size=grid_size, dropout=dropout,
-                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                       norm_layer=norm_layer)
     conf_fun_first = partial(fast_kan_conv3x3, groups=1, grid_size=grid_size, dropout=dropout,
-                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANet(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
 
 def u2kagnet_small(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                    dropout: float = 0.0, l1_decay: float = 0.0,
-                   affine: bool = True):
-    conf_fun = partial(kagn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine)
-    conf_fun_first = partial(kagn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine)
+                   affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(kagn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(kagn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANetSmall(conf_fun, conf_fun_first=conf_fun_first,
                         in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
 
 def u2kalnet_small(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                   dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True):
-    conf_fun = partial(kaln_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine)
-    conf_fun_first = partial(kaln_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine)
+                   dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True,
+                   norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(kaln_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(kaln_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANetSmall(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
 
 def u2kacnet_small(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-                   dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True):
-    conf_fun = partial(kacn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine)
-    conf_fun_first = partial(kacn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine)
+                   dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True,
+                   norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(kacn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(kacn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANetSmall(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
@@ -416,11 +437,13 @@ def u2kacnet_small(input_channels, num_classes, groups: int = 1, degree: int = 3
 def u2kanet_small(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
                   base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
                   grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0, width_scale: int = 1,
-                  affine: bool = True):
+                  affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     conf_fun = partial(kan_conv3x3, spline_order=spline_order, groups=groups, grid_size=grid_size, dropout=dropout,
-                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                       norm_layer=norm_layer)
     conf_fun_first = partial(kan_conv3x3, spline_order=spline_order, groups=1, grid_size=grid_size, dropout=dropout,
-                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANetSmall(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
@@ -428,10 +451,12 @@ def u2kanet_small(input_channels, num_classes, groups: int = 1, spline_order: in
 def fast_u2kanet_small(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                        base_activation: Optional[Callable[..., nn.Module]] = nn.SiLU,
                        grid_range: List = [-2, 2], dropout: float = 0.0, l1_decay: float = 0.0,
-                       width_scale: int = 1, affine: bool = True):
+                       width_scale: int = 1, affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     conf_fun = partial(fast_kan_conv3x3, groups=groups, grid_size=grid_size, dropout=dropout,
-                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                       l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                       norm_layer=norm_layer)
     conf_fun_first = partial(fast_kan_conv3x3, groups=1, grid_size=grid_size, dropout=dropout,
-                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine)
+                             l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
+                             norm_layer=norm_layer)
 
     return U2KANetSmall(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)

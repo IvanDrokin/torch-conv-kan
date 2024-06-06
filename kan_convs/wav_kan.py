@@ -361,9 +361,9 @@ class WavKANConvNDLayer(nn.Module):
 
 class WavKANConv3DLayer(WavKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 dropout=0.0, wavelet_type='mexican_hat', norm_class=nn.BatchNorm3d,
+                 dropout=0.0, wavelet_type='mexican_hat', norm_layer=nn.BatchNorm3d,
                  wav_version: str = 'fast', **norm_kwargs):
-        super(WavKANConv3DLayer, self).__init__(nn.Conv3d, None, norm_class, input_dim, output_dim, kernel_size,
+        super(WavKANConv3DLayer, self).__init__(nn.Conv3d, None, norm_layer, input_dim, output_dim, kernel_size,
                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
                                                 ndim=3, dropout=dropout, wavelet_type=wavelet_type,
                                                 wav_version=wav_version, **norm_kwargs)
@@ -371,9 +371,9 @@ class WavKANConv3DLayer(WavKANConvNDLayer):
 
 class WavKANConv2DLayer(WavKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 dropout=0.0, wavelet_type='mexican_hat', norm_class=nn.BatchNorm2d,
+                 dropout=0.0, wavelet_type='mexican_hat', norm_layer=nn.BatchNorm2d,
                  wav_version: str = 'fast', **norm_kwargs):
-        super(WavKANConv2DLayer, self).__init__(nn.Conv2d, nn.Conv3d, norm_class, input_dim, output_dim, kernel_size,
+        super(WavKANConv2DLayer, self).__init__(nn.Conv2d, nn.Conv3d, norm_layer, input_dim, output_dim, kernel_size,
                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
                                                 ndim=2, dropout=dropout, wavelet_type=wavelet_type,
                                                 wav_version=wav_version, **norm_kwargs)
@@ -381,9 +381,9 @@ class WavKANConv2DLayer(WavKANConvNDLayer):
 
 class WavKANConv1DLayer(WavKANConvNDLayer):
     def __init__(self, input_dim, output_dim, kernel_size, groups=1, padding=0, stride=1, dilation=1,
-                 dropout=0.0, wavelet_type='mexican_hat', norm_class=nn.BatchNorm1d,
+                 dropout=0.0, wavelet_type='mexican_hat', norm_layer=nn.BatchNorm1d,
                  wav_version: str = 'fast', **norm_kwargs):
-        super(WavKANConv1DLayer, self).__init__(nn.Conv1d, nn.Conv2d, norm_class, input_dim, output_dim, kernel_size,
+        super(WavKANConv1DLayer, self).__init__(nn.Conv1d, nn.Conv2d, norm_layer, input_dim, output_dim, kernel_size,
                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
                                                 ndim=1, dropout=dropout, wavelet_type=wavelet_type,
                                                 wav_version=wav_version, **norm_kwargs)

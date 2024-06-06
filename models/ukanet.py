@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
+from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1
 from .reskanet import KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KANBottleneck, \
     FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck, KAGNBasicBlock
-from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1
 
 
 class UKANet(nn.Module):
@@ -207,7 +207,8 @@ class UKANet(nn.Module):
 
 def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
               base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-              grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True):
+              grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True,
+              norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -219,12 +220,15 @@ def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 
                   base_activation=base_activation,
                   grid_range=grid_range,
                   width_scale=width_scale,
-                  affine=affine)
+                  affine=affine,
+                  norm_layer=norm_layer
+                  )
 
 
 def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                    base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                   grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True):
+                   grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True,
+                   norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(FastKANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -235,11 +239,13 @@ def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int 
                   base_activation=base_activation,
                   grid_range=grid_range,
                   width_scale=width_scale,
-                  affine=affine)
+                  affine=affine,
+                  norm_layer=norm_layer)
 
 
 def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-               affine: bool = True):
+               affine: bool = True,
+               norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -247,11 +253,13 @@ def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, wi
                   groups=groups,
                   width_per_group=64,
                   degree=degree, width_scale=width_scale,
-                  affine=affine)
+                  affine=affine,
+                  norm_layer=norm_layer)
 
 
 def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-               affine: bool = True):
+               affine: bool = True,
+               norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -260,11 +268,13 @@ def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, wi
                   width_per_group=64,
                   degree=degree,
                   width_scale=width_scale,
-                  affine=affine)
+                  affine=affine,
+                  norm_layer=norm_layer)
 
 
 def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3,
-               width_scale: int = 1, affine: bool = True):
+               width_scale: int = 1, affine: bool = True,
+               norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KACNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -273,4 +283,5 @@ def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3,
                   width_per_group=64,
                   degree=degree,
                   width_scale=width_scale,
-                  affine=affine)
+                  affine=affine,
+                  norm_layer=norm_layer)
