@@ -183,7 +183,7 @@ class UKANet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         x = self.conv1(x)
 
         enc1 = self.layer1e(x)
@@ -207,8 +207,9 @@ class UKANet(nn.Module):
 
 def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
               base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-              grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True,
-              norm_layer: nn.Module = nn.InstanceNorm2d):
+              grid_range: List = [-1, 1], width_scale: int = 1,
+              dropout: float = 0., l1_decay: float = 0.,
+              affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -221,14 +222,17 @@ def ukanet_18(input_channels, num_classes, groups: int = 1, spline_order: int = 
                   grid_range=grid_range,
                   width_scale=width_scale,
                   affine=affine,
-                  norm_layer=norm_layer
+                  norm_layer=norm_layer,
+                  dropout=dropout,
+                  l1_decay=l1_decay
                   )
 
 
 def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
                    base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                   grid_range: List = [-1, 1], width_scale: int = 1, affine: bool = True,
-                   norm_layer: nn.Module = nn.InstanceNorm2d):
+                   grid_range: List = [-1, 1], width_scale: int = 1,
+                   dropout: float = 0., l1_decay: float = 0.,
+                   affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(FastKANBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -240,12 +244,14 @@ def fast_ukanet_18(input_channels, num_classes, groups: int = 1, grid_size: int 
                   grid_range=grid_range,
                   width_scale=width_scale,
                   affine=affine,
-                  norm_layer=norm_layer)
+                  norm_layer=norm_layer,
+                  dropout=dropout,
+                  l1_decay=l1_decay)
 
 
 def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-               affine: bool = True,
-               norm_layer: nn.Module = nn.InstanceNorm2d):
+               affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d,
+               dropout: float = 0., l1_decay: float = 0.):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -254,11 +260,13 @@ def ukalnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, wi
                   width_per_group=64,
                   degree=degree, width_scale=width_scale,
                   affine=affine,
-                  norm_layer=norm_layer)
+                  norm_layer=norm_layer,
+                  dropout=dropout,
+                  l1_decay=l1_decay)
 
 
 def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-               affine: bool = True,
+               affine: bool = True, dropout: float = 0., l1_decay: float = 0.,
                norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KALNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
@@ -269,12 +277,15 @@ def ukagnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3, wi
                   degree=degree,
                   width_scale=width_scale,
                   affine=affine,
-                  norm_layer=norm_layer)
+                  norm_layer=norm_layer,
+                  dropout=dropout,
+                  l1_decay=l1_decay)
 
 
 def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3,
-               width_scale: int = 1, affine: bool = True,
-               norm_layer: nn.Module = nn.InstanceNorm2d):
+               width_scale: int = 1,
+               dropout: float = 0., l1_decay: float = 0.,
+               affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(KACNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -284,4 +295,6 @@ def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3,
                   degree=degree,
                   width_scale=width_scale,
                   affine=affine,
-                  norm_layer=norm_layer)
+                  norm_layer=norm_layer,
+                  dropout=dropout,
+                  l1_decay=l1_decay)

@@ -1022,6 +1022,46 @@ def reskagnet50(input_channels, num_classes, groups: int = 1, degree: int = 3, w
                     affine=affine)
 
 
+def reskagnet101(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
+                hidden_layer_dim=None, affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
+    return ResKANet(KAGNBottleneck, [3, 4, 23, 3],
+                    input_channels=input_channels,
+                    use_first_maxpool=True,
+                    fcnv_kernel_size=7, fcnv_stride=2, fcnv_padding=3,
+                    num_classes=num_classes,
+                    groups=groups,
+                    width_per_group=64,
+                    degree=degree,
+                    width_scale=width_scale,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay,
+                    hidden_layer_dim=hidden_layer_dim,
+                    norm_layer=norm_layer,
+                    affine=affine)
+
+
+def reskagnet152(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
+                hidden_layer_dim=None, affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
+    return ResKANet(KAGNBottleneck, [3, 8, 36, 3],
+                    input_channels=input_channels,
+                    use_first_maxpool=True,
+                    fcnv_kernel_size=7, fcnv_stride=2, fcnv_padding=3,
+                    num_classes=num_classes,
+                    groups=groups,
+                    width_per_group=64,
+                    degree=degree,
+                    width_scale=width_scale,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay,
+                    hidden_layer_dim=hidden_layer_dim,
+                    norm_layer=norm_layer,
+                    affine=affine)
+
+
 def moe_reskalnet_50x64p(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
                          num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
                          hidden_layer_dim=None, dropout: float = 0.15, dropout_linear: float = 0.25,

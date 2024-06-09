@@ -25,6 +25,7 @@ import wandb
 
 from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
 from .metrics import get_metrics
+from .losses import Dice
 
 logger = get_logger(__name__)
 
@@ -141,10 +142,11 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
     if cfg.use_torch_compile:
         compiled_model = torch.compile(model, mode="max-autotune", dynamic=False)
         torch.set_float32_matmul_precision('high')
+        params_to_optimize = compiled_model.parameters()
     else:
         compiled_model = None
+        params_to_optimize = model.parameters()
 
-    params_to_optimize = model.parameters()
     if cfg.optim.type == 'adamW':
         optimizer_class = torch.optim.AdamW
         optimizer = optimizer_class(
@@ -203,10 +205,16 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                                KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
             module.register_forward_hook(output_hook)
 
-    metric_acc = partial(accuracy, task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
-    metric_acc_top5 = partial(accuracy, task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
-    model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5 = accelerator.prepare(
-        model, optimizer, train_dataloader, val_dataloader, lr_scheduler, metric_acc, metric_acc_top5
+    if cfg.metrics.report_type == 'classification':
+        metric_acc = partial(accuracy, task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
+        metric_acc_top5 = partial(accuracy, task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
+        metric_acc, metric_acc_top5 = accelerator.prepare(metric_acc, metric_acc_top5)
+    if cfg.metrics.report_type == 'segmentation':
+        dice_metric = Dice()
+        dice_metric = accelerator.prepare(dice_metric)
+
+    model, optimizer, train_dataloader, val_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, val_dataloader, lr_scheduler,
     )
     output_hook = accelerator.prepare(output_hook)
     if cfg.use_torch_compile:
@@ -276,17 +284,30 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 if moe_loss is not None:
                     loss += moe_loss
 
-                if isinstance(output, tuple):
-                    acc = metric_acc(output[-1], labels)
-                    acc_t5 = metric_acc_top5(output[-1], labels)
-                else:
+                if cfg.metrics.report_type == 'classification':
+                    if isinstance(output, tuple):
+                        acc = metric_acc(output[-1], labels)
+                        acc_t5 = metric_acc_top5(output[-1], labels)
+                    else:
+                        acc = metric_acc(output, labels)
+                        acc_t5 = metric_acc_top5(output, labels)
 
-                    acc = metric_acc(output, labels)
-                    acc_t5 = metric_acc_top5(output, labels)
+                    additional_metrics = {"train_acc": acc.detach().item(),
+                                          "train_acc_top5": acc_t5.detach().item()}
+                if cfg.metrics.report_type == 'segmentation':
+                    if isinstance(output, tuple):
+                        model_out = output[0]
+                    else:
+                        model_out = output
+                    dice_val = dice_metric(model_out, labels)
+                    additional_metrics = {"dice": dice_val.detach().item(), }
 
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
-                    params_to_clip = model.parameters()
+                    if cfg.use_torch_compile:
+                        params_to_clip = compiled_model.parameters()
+                    else:
+                        params_to_clip = model.parameters()
                     accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
@@ -297,9 +318,8 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
             if accelerator.sync_gradients:
                 progress_bar.update(1)
                 global_step += 1
-
-            logs = {"loss": loss.detach().item(), "train_acc": acc.detach().item(),
-                    "train_acc_top5": acc_t5.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
+            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
+            logs.update(additional_metrics)
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
@@ -318,7 +338,11 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     predicts, _ = predicts
                 if isinstance(predicts, tuple):
                     predicts = predicts[-1]
-                predicts = torch.softmax(predicts, dim=1)
+                if cfg.model.num_classes > 1:
+                    predicts = torch.softmax(predicts, dim=1)
+                else:
+                    predicts = torch.sigmoid(predicts)
+
                 output_hook.clear()
 
             all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
@@ -365,7 +389,12 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     wandb_tracker.log({key_layer: [wandb.Image(image_layer), ]}, step=global_step)
                 logger.info(f"CAM Visualization logged")
 
-            save_path = os.path.join(cfg.output_dir, f"checkpoint-{epoch}-acc-{metrics[cfg.tracking_metric]}")
+            if cfg.metrics.report_type == 'classification':
+                save_checkpoint_name = f"checkpoint-{epoch}-acc-{metrics[cfg.tracking_metric]}"
+            else:
+                save_checkpoint_name = f"checkpoint-{epoch}-dice-{metrics[cfg.tracking_metric]}"
+
+            save_path = os.path.join(cfg.output_dir, save_checkpoint_name)
             accelerator.save_state(save_path)
             logger.info(f"Saved state to {save_path}")
 

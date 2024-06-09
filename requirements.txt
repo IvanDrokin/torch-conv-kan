@@ -15,3 +15,4 @@ matplotlib
 huggingface_hub
 lion-pytorch
 imbalanced-learn
+albumentations

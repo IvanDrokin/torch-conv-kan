@@ -5,7 +5,6 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from train import LBFGS
 import torchvision
 from torch.utils.data import DataLoader
 from torchvision.transforms import v2
@@ -179,11 +178,7 @@ def train_and_validate(model, bs, epochs=15, dataset_name='MNIST', model_save_di
     # model_compiled = torch.compile(model)
 
     # Set up the optimizer with specified parameters
-    if use_adam:
-        optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
-    else:
-        optimizer = LBFGS(model.parameters(), lr=1e-4, history_size=10)
-
+    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
 
     # Define the learning rate scheduler
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.975)

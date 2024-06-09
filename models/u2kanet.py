@@ -148,7 +148,7 @@ class U2KANet(nn.Module):
 
         self.outconv = nn.Conv2d(6 * out_ch, out_ch, 1)
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         hx = x
 
         # stage 1
@@ -258,16 +258,16 @@ class U2KANetSmall(nn.Module):
         self.stage1d = ResidualUNetBase(conv_func, depth=7, in_ch=32 * width_factor, mid_ch=4 * width_factor,
                                         out_ch=16 * width_factor)
 
-        self.side1 = nn.Conv2d(16, out_ch, 3, padding=1)
-        self.side2 = nn.Conv2d(16, out_ch, 3, padding=1)
-        self.side3 = nn.Conv2d(16, out_ch, 3, padding=1)
-        self.side4 = nn.Conv2d(16, out_ch, 3, padding=1)
-        self.side5 = nn.Conv2d(16, out_ch, 3, padding=1)
-        self.side6 = nn.Conv2d(16, out_ch, 3, padding=1)
+        self.side1 = nn.Conv2d(16 * width_factor, out_ch, 3, padding=1)
+        self.side2 = nn.Conv2d(16 * width_factor, out_ch, 3, padding=1)
+        self.side3 = nn.Conv2d(16 * width_factor, out_ch, 3, padding=1)
+        self.side4 = nn.Conv2d(16 * width_factor, out_ch, 3, padding=1)
+        self.side5 = nn.Conv2d(16 * width_factor, out_ch, 3, padding=1)
+        self.side6 = nn.Conv2d(16 * width_factor, out_ch, 3, padding=1)
 
         self.outconv = nn.Conv2d(6 * out_ch, out_ch, 1)
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         hx = x
 
         # stage 1
