@@ -8,9 +8,9 @@ import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
 
 from kans import mlp_kan, mlp_fastkan, mlp_kacn, mlp_kagn, mlp_kaln, mlp_wav_kan
+from .extra_layers import MatryoshkaHead
 from .model_utils import kan_conv3x3, kaln_conv3x3, fast_kan_conv3x3, kacn_conv3x3, kagn_conv3x3, wav_kan_conv3x3
-from .model_utils import moe_kagn_conv3x3
-
+from .model_utils import moe_kagn_conv3x3, bottleneck_kagn_conv3x3
 
 cfgs: Dict[str, List[Union[str, int]]] = {
     "VGG11": [16, "M", 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M"],
@@ -74,9 +74,9 @@ class VGG(nn.Module):
             classification = kan_fun([in_channels * prod(expected_feature_shape), num_classes])
         elif head_type == 'HiddenKAN':
             classification = nn.Sequential(
-                kan_fun([in_channels * prod(expected_feature_shape), 1024]),
+                kan_fun([in_channels * prod(expected_feature_shape), 512]),
                 nn.Dropout(p=head_dropout),
-                nn.Linear(1024, num_classes),
+                nn.Linear(512, num_classes),
             )
         elif head_type == 'VGG':
             classification = nn.Sequential(
@@ -92,6 +92,19 @@ class VGG(nn.Module):
             classification = nn.Sequential(
                 nn.Dropout(p=head_dropout),
                 nn.Linear(in_channels * prod(expected_feature_shape), num_classes),
+            )
+        elif head_type == 'Matryoshka':
+            classification = nn.Sequential(
+                nn.Linear(in_channels * prod(expected_feature_shape), 1024),
+                nn.ReLU(True),
+                nn.Dropout(p=head_dropout),
+                MatryoshkaHead([2 ** n for n in range(6, 11)], num_classes, efficient=True),
+            )
+        elif head_type == 'KANtryoshka':
+            classification = nn.Sequential(
+                kan_fun([in_channels * prod(expected_feature_shape), 512]),
+                nn.Dropout(p=head_dropout),
+                MatryoshkaHead([2 ** n for n in range(5, 10)], num_classes, efficient=True),
             )
         else:
             classification = None
@@ -127,71 +140,20 @@ class VGG(nn.Module):
         return x
 
 
-def make_layers(cfg: List[Union[str, int]],
-                head_type,
-                conv_fun,
-                conv_fun_first,
-                kan_fun,
-                expected_feature_shape: Tuple = (7, 7),
-                num_input_features: int = 3,
-                num_classes: int = 1000,
-                width_scale: int = 1,
-                head_dropout: float = 0.5
-                ):
-    layers: List[nn.Module] = []
-    in_channels = num_input_features
-    for l_index, v in enumerate(cfg):
-        if v == "M":
-            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-        else:
-            v = cast(int, v)
-            if l_index == 0:
-                conv2d = conv_fun_first(in_channels, v * width_scale)
-            else:
-                conv2d = conv_fun(in_channels, v * width_scale)
-            layers.append(conv2d)
-            in_channels = v * width_scale
-    if head_type == 'KAN':
-        classification = kan_fun([in_channels * prod(expected_feature_shape), num_classes])
-    elif head_type == 'HiddenKAN':
-        classification = nn.Sequential(
-            kan_fun([in_channels * prod(expected_feature_shape), 1024]),
-            nn.Dropout(p=head_dropout),
-            nn.Linear(1024, num_classes),
-        )
-    elif head_type == 'VGG':
-        classification = nn.Sequential(
-            nn.Linear(in_channels * prod(expected_feature_shape), 1024),
-            nn.ReLU(True),
-            nn.Dropout(p=head_dropout),
-            nn.Linear(1024, 1024),
-            nn.ReLU(True),
-            nn.Dropout(p=head_dropout),
-            nn.Linear(1024, num_classes),
-        )
-    elif head_type == 'Linear':
-        classification = nn.Sequential(
-            nn.Dropout(p=head_dropout),
-            nn.Linear(in_channels * prod(expected_feature_shape), num_classes),
-        )
-    else:
-        classification = None
-
-    return nn.ModuleList(layers), classification
-
-
 class VGGKAN(VGG, PyTorchModelHubMixin):
     def __init__(self, input_channels, num_classes, groups: int = 1, spline_order: int = 3, grid_size: int = 5,
                  base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
                  grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
                  dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
         conv_fun = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
                            base_activation=base_activation, grid_range=grid_range,
-                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine,
+                           norm_layer=norm_layer)
         conv_fun_first = partial(kan_conv3x3, spline_order=spline_order, grid_size=grid_size,
                                  base_activation=base_activation, grid_range=grid_range, l1_decay=l1_decay,
-                                 affine=affine)
+                                 affine=affine, norm_layer=norm_layer)
         kan_fun = partial(mlp_kan, spline_order=spline_order, grid_size=grid_size,
                           base_activation=base_activation, grid_range=grid_range,
                           dropout=dropout_linear, l1_decay=l1_decay)
@@ -208,12 +170,14 @@ def vggkan(input_channels, num_classes, groups: int = 1, spline_order: int = 3, 
            base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
            grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
            dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-           expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+           expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+           norm_layer: nn.Module = nn.InstanceNorm2d):
     return VGGKAN(input_channels, num_classes, groups=groups, spline_order=spline_order, grid_size=grid_size,
                   base_activation=base_activation,
                   grid_range=grid_range, dropout=dropout, l1_decay=l1_decay,
                   dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
-                  expected_feature_shape=expected_feature_shape, width_scale=width_scale, affine=affine)
+                  expected_feature_shape=expected_feature_shape, width_scale=width_scale, affine=affine,
+                  norm_layer=norm_layer)
 
 
 class FastVGGKAN(VGG, PyTorchModelHubMixin):
@@ -222,13 +186,15 @@ class FastVGGKAN(VGG, PyTorchModelHubMixin):
                  grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
                  dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
                  expected_feature_shape: Tuple = (7, 7),
-                 width_scale: int = 1, affine: bool = False):
+                 width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
         conv_fun = partial(fast_kan_conv3x3, grid_size=grid_size,
                            base_activation=base_activation, grid_range=grid_range,
-                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine,
+                           norm_layer=norm_layer)
         conv_fun_first = partial(fast_kan_conv3x3, grid_size=grid_size,
                                  base_activation=base_activation, grid_range=grid_range, l1_decay=l1_decay,
-                                 affine=affine)
+                                 affine=affine, norm_layer=norm_layer)
         kan_fun = partial(mlp_fastkan, grid_size=grid_size,
                           base_activation=base_activation, grid_range=grid_range,
                           dropout=dropout_linear, l1_decay=l1_decay)
@@ -246,23 +212,25 @@ def fast_vggkan(input_channels, num_classes, groups: int = 1, grid_size: int = 5
                 grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
                 dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
                 expected_feature_shape: Tuple = (7, 7),
-                width_scale: int = 1, affine: bool = False):
+                width_scale: int = 1, affine: bool = False,
+                norm_layer: nn.Module = nn.InstanceNorm2d):
     return FastVGGKAN(input_channels, num_classes, groups=groups, grid_size=grid_size,
                       base_activation=base_activation,
                       grid_range=grid_range, dropout=dropout, l1_decay=l1_decay,
                       dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
                       expected_feature_shape=expected_feature_shape,
-                      width_scale=width_scale, affine=affine)
+                      width_scale=width_scale, affine=affine, norm_layer=norm_layer)
 
 
 class VGGKALN(VGG, PyTorchModelHubMixin):
     def __init__(self, input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
                  l1_decay: float = 0.0,
                  dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
         conv_fun = partial(kaln_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay, groups=groups,
-                           affine=affine)
-        conv_fun_first = partial(kaln_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
+                           affine=affine, norm_layer=norm_layer)
+        conv_fun_first = partial(kaln_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine, norm_layer=norm_layer)
         kan_fun = partial(mlp_kaln, degree=degree, dropout=dropout_linear, l1_decay=l1_decay)
 
         features, head = self.make_layers(cfgs[vgg_type], head_type, conv_fun, conv_fun_first, kan_fun,
@@ -275,20 +243,23 @@ class VGGKALN(VGG, PyTorchModelHubMixin):
 
 def vggkaln(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
             dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+            norm_layer: nn.Module = nn.InstanceNorm2d):
     return VGGKALN(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout, l1_decay=l1_decay,
                    dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
-                   expected_feature_shape=expected_feature_shape, width_scale=width_scale, affine=affine)
+                   expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                   affine=affine, norm_layer=norm_layer)
 
 
 class VGGKAGN(VGG, PyTorchModelHubMixin):
     def __init__(self, input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
-                 l1_decay: float = 0.0,
-                 dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+                 l1_decay: float = 0.0, dropout_linear: float = 0.25, vgg_type: str = 'VGG11',
+                 head_type: str = 'Linear',
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
         conv_fun = partial(kagn_conv3x3, degree=degree,
-                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
-        conv_fun_first = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine, norm_layer=norm_layer)
+        conv_fun_first = partial(kagn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine, norm_layer=norm_layer)
         kan_fun = partial(mlp_kagn, degree=degree,
                           dropout=dropout_linear, l1_decay=l1_decay)
 
@@ -302,20 +273,55 @@ class VGGKAGN(VGG, PyTorchModelHubMixin):
 
 def vggkagn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
             dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+            norm_layer: nn.Module = nn.InstanceNorm2d):
     return VGGKAGN(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout, l1_decay=l1_decay,
                    dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
-                   expected_feature_shape=expected_feature_shape, width_scale=width_scale, affine=affine)
+                   expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                   affine=affine, norm_layer=norm_layer)
+
+
+class VGGKAGN_BN(VGG, PyTorchModelHubMixin):
+    def __init__(self, input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
+                 l1_decay: float = 0.0, dropout_linear: float = 0.25, vgg_type: str = 'VGG11',
+                 head_type: str = 'Linear',
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
+        conv_fun = partial(bottleneck_kagn_conv3x3, degree=degree,
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine, norm_layer=norm_layer)
+        conv_fun_first = partial(bottleneck_kagn_conv3x3, degree=degree, l1_decay=l1_decay,
+                                 affine=affine, norm_layer=norm_layer)
+        kan_fun = partial(mlp_kagn, degree=degree,
+                          dropout=dropout_linear, l1_decay=l1_decay)
+
+        features, head = self.make_layers(cfgs[vgg_type], head_type, conv_fun, conv_fun_first, kan_fun,
+                                          expected_feature_shape=expected_feature_shape,
+                                          num_input_features=input_channels, num_classes=num_classes,
+                                          width_scale=width_scale,
+                                          head_dropout=dropout_linear)
+        super().__init__(features, head, expected_feature_shape)
+
+
+def vggkagn_bn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
+               l1_decay: float = 0.0,
+               dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
+               expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+               norm_layer: nn.Module = nn.InstanceNorm2d):
+    return VGGKAGN_BN(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                      dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
+                      expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                      affine=affine, norm_layer=norm_layer)
 
 
 class VGGKACN(VGG, PyTorchModelHubMixin):
     def __init__(self, input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
                  l1_decay: float = 0.0,
                  dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
         conv_fun = partial(kacn_conv3x3, degree=degree,
-                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine)
-        conv_fun_first = partial(kacn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine)
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine, norm_layer=norm_layer)
+        conv_fun_first = partial(kacn_conv3x3, degree=degree, l1_decay=l1_decay, affine=affine, norm_layer=norm_layer)
         kan_fun = partial(mlp_kacn, degree=degree,
                           dropout=dropout_linear, l1_decay=l1_decay)
 
@@ -329,10 +335,12 @@ class VGGKACN(VGG, PyTorchModelHubMixin):
 
 def vggkacn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0, l1_decay: float = 0.0,
             dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False):
+            expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+            norm_layer: nn.Module = nn.InstanceNorm2d):
     return VGGKACN(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout, l1_decay=l1_decay,
                    dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
-                   expected_feature_shape=expected_feature_shape, width_scale=width_scale, affine=affine)
+                   expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                   affine=affine, norm_layer=norm_layer)
 
 
 class MoEVGGKAGN(VGG, PyTorchModelHubMixin):
@@ -371,11 +379,12 @@ class WavVVGKAN(VGG, PyTorchModelHubMixin):
                  wavelet_type: str = 'mexican_hat', wav_version: str = 'fast',
                  dropout: float = 0.0, l1_decay: float = 0.0,
                  dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1,
+                 norm_layer: nn.Module = nn.InstanceNorm2d, affine: bool = False):
         conv_fun = partial(wav_kan_conv3x3, wavelet_type=wavelet_type, wav_version=wav_version,
-                           dropout=dropout, l1_decay=l1_decay, groups=groups)
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, norm_layer=norm_layer, affine=affine)
         conv_fun_first = partial(wav_kan_conv3x3, wavelet_type=wavelet_type, wav_version=wav_version,
-                                 l1_decay=l1_decay)
+                                 l1_decay=l1_decay, norm_layer=norm_layer, affine=affine)
         kan_fun = partial(mlp_wav_kan, wavelet_type=wavelet_type,
                           dropout=dropout_linear, l1_decay=l1_decay)
 
@@ -391,9 +400,11 @@ def vgg_wav_kan(input_channels, num_classes, groups: int = 1,
                 wavelet_type: str = 'mexican_hat', wav_version: str = 'fast',
                 dropout: float = 0.0, l1_decay: float = 0.0,
                 dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
-                expected_feature_shape: Tuple = (7, 7), width_scale: int = 1):
+                expected_feature_shape: Tuple = (7, 7), width_scale: int = 1,
+                norm_layer: nn.Module = nn.InstanceNorm2d, affine: bool = False):
     return WavVVGKAN(input_channels, num_classes, groups=groups,
                      wavelet_type=wavelet_type, wav_version=wav_version,
                      dropout=dropout, l1_decay=l1_decay,
                      dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
-                     expected_feature_shape=expected_feature_shape, width_scale=width_scale)
+                     expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                     norm_layer=norm_layer, affine=affine)
