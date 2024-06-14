@@ -1,0 +1,69 @@
+# @package _global_
+output_dir: "./runs/cifar100-tune/"
+logging_dir: "./runs/cifar100-tune-r/train_logs/"
+model_name: "cifar100-tune"
+gradient_accumulation_steps: 4
+mixed_precision: 'fp16'
+epochs: 150
+train_batch_size: 64
+val_batch_size: 64
+dataloader_num_workers: 4
+seed: 42
+
+max_train_steps: none
+
+max_grad_norm: 2.
+
+use_torch_compile: false
+unpack_data: true
+
+checkpointing_steps: 5000
+checkpoints_total_limit: 1000
+find_unused_parameters: false
+
+tracking_metric: 'accuracy'
+
+metrics:
+  report_type: 'classification'
+
+model:
+  input_channels: 3
+  groups: 1
+  degree: 4
+  width_scale: 1
+  dropout: 0.1
+  dropout_linear: 0.5
+  l1_decay: 5e-5
+  l2_activation_penalty: 1e-5
+  l1_activation_penalty: 1e-5
+  degree_out: 1
+  num_classes: 100
+  is_moe: false
+
+optim:
+  type: 'adamW'
+  learning_rate: 5e-4
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_weight_decay: 1e-4
+  adam_epsilon: 1e-8
+  lr_warmup_steps: 1000
+  lr_power: 0.2
+  lr_end: 1e-7
+  set_grads_to_none: false
+
+wandb:
+  entity: 'ivan-s-drokin'
+  project_name: 'cifar100-tune_eight'
+
+loss:
+  label_smoothing: 0.05
+
+raytune:
+  num_samples: 100
+  max_num_epochs: 150
+  gpus_per_trial: 1
+  cpus_per_trial: 4
+  metric: 'accuracy'
+  mode: 'max'
+  optuna: true

@@ -5,7 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3
+from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3, conv3x3, \
+    bottleneck_kagn_conv3x3
 
 
 def _upsample_like(src, tar):
@@ -350,6 +351,20 @@ def u2kagnet(input_channels, num_classes, groups: int = 1, degree: int = 3, widt
                    in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 
 
+def u2kagnet_bn(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True, dim_reduction: float = 8,
+                norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(bottleneck_kagn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay,
+                       affine=affine,
+                       norm_layer=norm_layer, dim_reduction=dim_reduction)
+    conf_fun_first = partial(bottleneck_kagn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay,
+                             affine=affine,
+                             norm_layer=norm_layer, dim_reduction=dim_reduction)
+
+    return U2KANet(conf_fun, conf_fun_first=conf_fun_first,
+                   in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
+
+
 def u2kalnet(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
              dropout: float = 0.0, l1_decay: float = 0.0, affine: bool = True,
              norm_layer: nn.Module = nn.InstanceNorm2d):
@@ -458,5 +473,22 @@ def fast_u2kanet_small(input_channels, num_classes, groups: int = 1, grid_size: 
     conf_fun_first = partial(fast_kan_conv3x3, groups=1, grid_size=grid_size, dropout=dropout,
                              l1_decay=l1_decay, base_activation=base_activation, grid_range=grid_range, affine=affine,
                              norm_layer=norm_layer)
+
+    return U2KANetSmall(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
+
+
+def u2net(input_channels, num_classes, groups: int = 1, width_scale: int = 1,
+          dropout: float = 0.0, l1_decay: float = 0.0):
+    conf_fun = partial(conv3x3, groups=groups, dropout=dropout, l1_decay=l1_decay)
+    conf_fun_first = partial(conv3x3, groups=1, dropout=dropout, l1_decay=l1_decay)
+
+    return U2KANet(conf_fun, conf_fun_first=conf_fun_first,
+                   in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
+
+
+def u2net_small(input_channels, num_classes, groups: int = 1, width_scale: int = 1,
+                dropout: float = 0.0, l1_decay: float = 0.0):
+    conf_fun = partial(conv3x3, groups=groups, dropout=dropout, l1_decay=l1_decay)
+    conf_fun_first = partial(conv3x3, groups=1, dropout=dropout, l1_decay=l1_decay)
 
     return U2KANetSmall(conf_fun, conf_fun_first, in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)

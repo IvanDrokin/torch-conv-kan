@@ -5,6 +5,26 @@ import torch
 import torch.nn as nn
 
 
+class NoiseInjection(nn.Module):
+    def __init__(self, p: float = 0.0, alpha: float = 0.05):
+        super(NoiseInjection, self).__init__()
+        self.p = p
+        self.alpha = alpha
+
+    def get_noise(self, x):
+        std = torch.std(x, dim=1, keepdim=True)
+        noise = torch.randn(x.shape, device=x.device, dtype=x.dtype) * std
+        return noise
+
+    def forward(self, x):
+        if self.training:
+            mask = torch.rand(x.shape, device=x.device, dtype=x.dtype)
+            mask = (mask < self.p).float() * 1
+            x = x + self.alpha * mask * self.get_noise(x)
+            return x
+        return x
+
+
 class WeightDecay(nn.Module):
     def __init__(self, module, weight_decay, name: str = None):
         if weight_decay < 0.0:

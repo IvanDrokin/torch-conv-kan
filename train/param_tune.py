@@ -1,93 +1,45 @@
 import gc
-from functools import partial
 import logging
 import math
 import os
 import shutil
-from pathlib import Path
+import tempfile
 from copy import deepcopy
+from functools import partial
+from pathlib import Path
 
 import accelerate
 import numpy as np
+import ray.cloudpickle as pickle
 import torch
 import torch.utils.checkpoint
-from lion_pytorch import Lion
-
 from accelerate import Accelerator
 from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
+from lion_pytorch import Lion
+from omegaconf import OmegaConf, open_dict
 from packaging import version
-from torch.optim.lr_scheduler import LambdaLR
+from ray import train
+from ray import tune
+from ray.train import Checkpoint, get_checkpoint
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna import OptunaSearch
+from torch.utils.data import random_split
 from torchmetrics.functional import accuracy
 from tqdm.auto import tqdm
-import wandb
 
-from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
-from .metrics import get_metrics
+from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, \
+    WavKANConv2DLayer
 from .losses import Dice
+from .metrics import get_metrics
 
 logger = get_logger(__name__)
 
-
-class OutputHook(list):
-    """ Hook to capture module outputs.
-    """
-    def __call__(self, module, input, output):
-        self.append(output)
+from .trainer import get_polynomial_decay_schedule_with_warmup, OutputHook
 
 
-def get_polynomial_decay_schedule_with_warmup(
-        optimizer, num_warmup_steps, num_training_steps, lr_end=1e-7, power=1.0, last_epoch=-1
-):
-    """
-    Create a schedule with a learning rate that decreases as a polynomial decay from the initial lr set in the
-    optimizer to end lr defined by *lr_end*, after a warmup period during which it increases linearly from 0 to the
-    initial lr set in the optimizer.
-
-    Args:
-        optimizer ([`~torch.optim.Optimizer`]):
-            The optimizer for which to schedule the learning rate.
-        num_warmup_steps (`int`):
-            The number of steps for the warmup phase.
-        num_training_steps (`int`):
-            The total number of training steps.
-        lr_end (`float`, *optional*, defaults to 1e-7):
-            The end LR.
-        power (`float`, *optional*, defaults to 1.0):
-            Power factor.
-        last_epoch (`int`, *optional*, defaults to -1):
-            The index of the last epoch when resuming training.
-
-    Note: *power* defaults to 1.0 as in the fairseq implementation, which in turn is based on the original BERT
-    implementation at
-    https://github.com/google-research/bert/blob/f39e881b169b9d53bea03d2d341b31707a6c052b/optimization.py#L37
-
-    Return:
-        `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.
-
-    """
-
-    lr_init = optimizer.defaults["lr"]
-    if not (lr_init > lr_end):
-        raise ValueError(f"lr_end ({lr_end}) must be be smaller than initial lr ({lr_init})")
-
-    def lr_lambda(current_step: int):
-        if current_step < num_warmup_steps:
-            return float(current_step) / float(max(1, num_warmup_steps))
-        elif current_step > num_training_steps:
-            return lr_end / lr_init  # as LambdaLR multiplies by lr_init
-        else:
-            lr_range = lr_init - lr_end
-            decay_steps = num_training_steps - num_warmup_steps
-            pct_remaining = 1 - (current_step - num_warmup_steps) / decay_steps
-            decay = lr_range * pct_remaining ** power + lr_end
-            return decay / lr_init  # as LambdaLR multiplies by lr_init
-
-    return LambdaLR(optimizer, lr_lambda, last_epoch)
-
-
-def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=None, cam_reporter=None):
+def train_model(model, dataset_train, dataset_val, loss_func, cfg):
     logging_dir = Path(cfg.output_dir, cfg.logging_dir)
 
     accelerator_project_config = ProjectConfiguration(project_dir=cfg.output_dir, logging_dir=logging_dir)
@@ -162,6 +114,18 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                          weight_decay=cfg.optim.learning_rate,
                          use_triton=cfg.optim.use_triton)
 
+    checkpoint = get_checkpoint()
+    if checkpoint:
+        with checkpoint.as_directory() as checkpoint_dir:
+            data_path = Path(checkpoint_dir) / "data.pkl"
+            with open(data_path, "rb") as fp:
+                checkpoint_state = pickle.load(fp)
+            start_epoch = checkpoint_state["epoch"]
+            model.load_state_dict(checkpoint_state["net_state_dict"])
+            optimizer.load_state_dict(checkpoint_state["optimizer_state_dict"])
+    else:
+        start_epoch = 0
+
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,
         shuffle=True,
@@ -174,15 +138,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
         batch_size=cfg.val_batch_size,
         num_workers=cfg.dataloader_num_workers,
     )
-    test_dataloader = None
-    if dataset_test is not None:
-        test_dataloader = torch.utils.data.DataLoader(
-            dataset_test,
-            shuffle=False,
-            batch_size=cfg.val_batch_size,
-            num_workers=cfg.dataloader_num_workers,
-        )
-
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     cfg.max_train_steps = cfg.epochs * num_update_steps_per_epoch
@@ -219,8 +174,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
     output_hook = accelerator.prepare(output_hook)
     if cfg.use_torch_compile:
         compiled_model = accelerator.prepare(compiled_model)
-    if test_dataloader is not None:
-        test_dataloader = accelerator.prepare(test_dataloader)
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     cfg.max_train_steps = cfg.epochs * num_update_steps_per_epoch
@@ -237,7 +190,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
     logger.info(f"  Gradient Accumulation steps = {cfg.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {cfg.max_train_steps}")
     global_step = 0
-    first_epoch = 0
+    first_epoch = start_epoch
     initial_global_step = 0
     progress_bar = tqdm(
         range(0, cfg.max_train_steps),
@@ -246,7 +199,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
         # Only show the progress bar once on each machine.
         disable=not accelerator.is_local_main_process,
     )
-    image_logs = None
     for epoch in range(first_epoch, cfg.epochs):
         model.train()
         for step, batch in enumerate(train_dataloader):
@@ -356,8 +308,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
         if accelerator.is_main_process:
 
-            wandb_tracker = accelerator.get_tracker("wandb")
-
             targets = np.concatenate(targets, axis=0)
             predictions = np.concatenate(predictions, axis=0)
             metrics = get_metrics(targets, predictions, cfg.metrics)
@@ -383,76 +333,117 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     for removing_checkpoint in removing_checkpoints:
                         removing_checkpoint = os.path.join(cfg.output_dir, removing_checkpoint)
                         shutil.rmtree(removing_checkpoint)
-            if cam_reporter is not None:
 
-                logger.info(f"Running CAM Visualization")
-                report = cam_reporter.create_report(deepcopy(accelerator.unwrap_model(model)))
+            checkpoint_data = {
+                "epoch": epoch,
+                "net_state_dict": accelerator.unwrap_model(model).state_dict(),
+                "optimizer_state_dict": accelerator.unwrap_model(optimizer).state_dict(),
+            }
+            with tempfile.TemporaryDirectory() as checkpoint_dir:
+                data_path = Path(checkpoint_dir) / "data.pkl"
+                with open(data_path, "wb") as fp:
+                    pickle.dump(checkpoint_data, fp)
 
-                for key_layer, image_layer in report.items():
-                    wandb_tracker.log({key_layer: [wandb.Image(image_layer), ]}, step=global_step)
-                logger.info(f"CAM Visualization logged")
-
-            if cfg.metrics.report_type == 'classification':
-                save_checkpoint_name = f"checkpoint-{epoch}-acc-{metrics[cfg.tracking_metric]}"
-            else:
-                save_checkpoint_name = f"checkpoint-{epoch}-dice-{metrics[cfg.tracking_metric]}"
-
-            save_path = os.path.join(cfg.output_dir, save_checkpoint_name)
-            accelerator.save_state(save_path)
-            logger.info(f"Saved state to {save_path}")
+                checkpoint = Checkpoint.from_directory(checkpoint_dir)
+                train.report(
+                    {cfg.tracking_metric: metrics[cfg.tracking_metric]},
+                    checkpoint=checkpoint,
+                )
 
         gc.collect()
-    # Create the pipeline using using the trained modules and save it.
 
     accelerator.wait_for_everyone()
-    if test_dataloader is not None:
-
-        accelerator.wait_for_everyone()
-
-        predictions = []
-        targets = []
-        for step, batch in enumerate(test_dataloader):
-            images, labels = batch
-            # We could avoid this line since we set the accelerator with `device_placement=True`.
-            with torch.no_grad():
-                predicts = model(images, train=False)
-                if cfg.model.is_moe:
-                    predicts, _ = predicts
-                if isinstance(predicts, tuple):
-                    predicts = predicts[-1]
-                predicts = torch.softmax(predicts, dim=1)
-                output_hook.clear()
-
-            all_predictions, all_targets = accelerator.gather_for_metrics((predicts, labels))
-
-            if accelerator.is_main_process:
-                targets.append(all_targets.detach().cpu().numpy())
-                predictions.append(all_predictions.detach().cpu().numpy())
-
-        accelerator.wait_for_everyone()
-        if accelerator.is_main_process:
-            targets = np.concatenate(targets, axis=0)
-            predictions = np.concatenate(predictions, axis=0)
-            metrics = get_metrics(targets, predictions, cfg.metrics)
-
-            output_metric_header = [k for k in metrics.keys()]
-            values = [[metrics[k] for k in output_metric_header], ]
-
-            if "extra_table_log" in cfg:
-                for k, v in cfg.extra_table_log.items():
-                    output_metric_header.append(k)
-                    values[0].append(v)
-
-            output_metric = (values, output_metric_header)
-
-            del targets, predictions
-
-            test_table = wandb.Table(data=output_metric[0], columns=output_metric[1])
-            wandb_tracker = accelerator.get_tracker("wandb")
-            wandb_tracker.log({"test_set_metrics": test_table})
-
-    accelerator.wait_for_everyone()
-
     accelerator.end_training()
 
-    return model
+
+def ray_tune_train_model_wrapper(search_cfg, model, data_function, loss_func, original_cfg):
+    cfg = deepcopy(original_cfg)
+    OmegaConf.set_struct(cfg, True)
+    with open_dict(cfg):
+        if 'epochs' in search_cfg:
+            cfg.epochs = search_cfg['epochs']
+        if 'batch_size' in search_cfg:
+            cfg.train_batch_size = search_cfg['batch_size']
+            cfg.val_batch_size = search_cfg['batch_size']
+        for check_keys in ['groups', 'degree', 'width_scale', 'dropout',
+                           'dropout_linear', 'l1_decay', 'l2_activation_penalty',
+                           'l1_activation_penalty', 'num_init_features', 'growth_rate',
+                           'dropout_poly', 'dropout_degree', 'dropout_full', 'drop_type']:
+            if check_keys in search_cfg:
+                cfg['model'][check_keys] = search_cfg[check_keys]
+        for check_keys in ['learning_rate', 'adam_beta1', 'adam_beta2', 'adam_weight_decay',
+                           'adam_epsilon', 'lr_warmup_steps', 'lr_power',
+                           'lr_end']:
+            if check_keys in search_cfg:
+                cfg['optim'][check_keys] = search_cfg[check_keys]
+
+    data = data_function(cfg)
+
+    if 'val' in data:
+        train_data, val_data = data['train'], data['val']
+    else:
+        test_abs = int(len(data['train']) * 0.8)
+        train_data, val_data = random_split(
+            data['train'], [test_abs, len(data['train']) - test_abs]
+        )
+
+    loss_func = loss_func(search_cfg)
+    train_model(model(cfg), train_data, val_data, loss_func, cfg)
+
+
+def tune_params(search_config, model, config, data_function, loss_func, num_samples=10, max_num_epochs=10,
+                gpus_per_trial=2, cpus_per_trial=2):
+    """
+
+    :param search_config: dict
+    {
+        "l1": tune.choice([2**i for i in range(9)]),
+        "l2": tune.choice([2**i for i in range(9)]),
+        "lr": tune.loguniform(1e-4, 1e-1),
+        "batch_size": tune.choice([2, 4, 8, 16]),
+    }
+    :param model:
+    :param config:
+    :param num_samples:
+    :param data_function:
+    :param loss_func:
+    :param max_num_epochs:
+    :param gpus_per_trial:
+    :return:
+    """
+    if config.raytune.optuna:
+
+        algo = OptunaSearch(
+            search_config,
+            metric=config.raytune.metric,
+            mode=config.raytune.mode,
+        )
+        result = tune.run(
+            partial(ray_tune_train_model_wrapper, model=model, data_function=data_function,
+                    loss_func=loss_func, original_cfg=config),
+            resources_per_trial={"cpu": cpus_per_trial, "gpu": gpus_per_trial},
+            num_samples=num_samples,
+            search_alg=algo
+        )
+    else:
+
+        scheduler = ASHAScheduler(
+            metric=config.raytune.metric,
+            mode=config.raytune.mode,
+            max_t=max_num_epochs,
+            grace_period=1,
+            reduction_factor=2,
+        )
+        result = tune.run(
+            partial(ray_tune_train_model_wrapper, model=model, data_function=data_function,
+                    loss_func=loss_func, original_cfg=config),
+            resources_per_trial={"cpu": cpus_per_trial, "gpu": gpus_per_trial},
+            config=search_config,
+            num_samples=num_samples,
+            scheduler=scheduler,
+        )
+
+    best_trial = result.get_best_trial(config.raytune.metric, config.raytune.mode, "last")
+    print(f"Best trial config: {best_trial.config}")
+    print(f"Best trial final validation loss: {best_trial.last_result['loss']}")
+    print(f"Best trial final validation accuracy: {best_trial.last_result['accuracy']}")

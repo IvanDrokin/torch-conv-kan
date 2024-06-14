@@ -3,7 +3,7 @@ from typing import Callable, List, Optional
 import torch.nn as nn
 
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
-from kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer
+from kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer, BottleNeckKAGNConv2DLayer
 from utils import L1
 
 
@@ -31,6 +31,22 @@ def kan_conv3x3(in_planes: int, out_planes: int, spline_order: int = 3, groups: 
     if l1_decay > 0:
         conv = L1(conv, l1_decay)
     return conv
+
+
+def conv3x3(in_planes: int, out_planes: int, groups: int = 1, stride: int = 1,
+                dilation: int = 1, base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
+                l1_decay: float = 0.0, dropout: float = 0.0) -> nn.Sequential:
+    """3x3 convolution with padding"""
+
+    conv = nn.Conv2d(in_planes, out_planes, groups=groups, stride=stride,
+                     kernel_size=3, dilation=dilation, padding=dilation)
+    norm = nn.BatchNorm2d(out_planes)
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    if dropout > 0:
+        return nn.Sequential(nn.Dropout(p=dropout), conv, norm, base_activation())
+
+    return nn.Sequential(conv, norm, base_activation())
 
 
 def kan_conv1x1(in_planes: int, out_planes: int, spline_order: int = 3, stride: int = 1,
@@ -88,6 +104,29 @@ def kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int =
         dilation=dilation,
         groups=groups,
         dropout=dropout,
+        norm_layer=norm_layer,
+        **norm_kwargs
+    )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
+
+
+def bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
+                 dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                 l1_decay: float = 0.0, dim_reduction: float = 8, **norm_kwargs) -> BottleNeckKAGNConv2DLayer:
+    """3x3 convolution with padding"""
+    conv = BottleNeckKAGNConv2DLayer(
+        in_planes,
+        out_planes,
+        degree=degree,
+        kernel_size=3,
+        stride=stride,
+        padding=dilation,
+        dilation=dilation,
+        groups=groups,
+        dropout=dropout,
+        dim_reduction=dim_reduction,
         norm_layer=norm_layer,
         **norm_kwargs
     )

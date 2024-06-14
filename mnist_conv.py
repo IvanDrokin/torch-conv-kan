@@ -14,10 +14,19 @@ from tqdm import tqdm
 from models import SimpleConvKALN, SimpleFastConvKAN, SimpleConvKAN, SimpleConv, EightSimpleConvKALN, \
     EightSimpleFastConvKAN, EightSimpleConvKAN, EightSimpleConv, SimpleConvKACN, EightSimpleConvKACN, \
     SimpleConvKAGN, EightSimpleConvKAGN, SimpleConvWavKAN, EightSimpleConvWavKAN
+from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
+
+
+class OutputHook(list):
+    """ Hook to capture module outputs.
+    """
+    def __call__(self, module, input, output):
+        self.append(output)
 
 
 class Trainer:
-    def __init__(self, model_compiled, model, device, train_loader, val_loader, optimizer, scheduler, criterion):
+    def __init__(self, model_compiled, model, device, train_loader, val_loader, optimizer, scheduler, criterion,
+                 l1_activation_penalty=0.0, l2_activation_penalty=0.0):
         # Initialize the Trainer class with model, device, data loaders, optimizer, scheduler, and loss function
         self.model = model  # Neural network model to be trained and validated
         self.model_compiled = model_compiled
@@ -27,6 +36,14 @@ class Trainer:
         self.optimizer = optimizer  # Optimizer for adjusting model parameters
         self.scheduler = scheduler  # Learning rate scheduler for the optimizer
         self.criterion = criterion  # Loss function to measure model performance
+        self.l1_activation_penalty = l1_activation_penalty
+        self.l2_activation_penalty = l2_activation_penalty
+
+        self.output_hook = OutputHook()
+        for module in self.model.modules():
+            if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer,
+                                   KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
+                module.register_forward_hook(self.output_hook)
 
     def train_epoch(self):
         # Train the model for one epoch and return the average loss and accuracy
@@ -38,6 +55,19 @@ class Trainer:
             self.optimizer.zero_grad()  # Clear previous gradients
             output = self.model_compiled(images)  # Forward pass through the model
             loss = self.criterion(output, labels)  # Compute loss between model output and true labels
+
+            l2_penalty = 0.
+            l1_penalty = 0.
+            for _output in self.output_hook:
+                if self.l1_activation_penalty > 0:
+                    l1_penalty += torch.norm(_output, 1, dim=0).mean()
+                if self.l2_activation_penalty > 0:
+                    l2_penalty += torch.norm(_output, 2, dim=0).mean()
+            l2_penalty *= self.l2_activation_penalty
+            l1_penalty *= self.l1_activation_penalty
+
+            loss = loss + l1_penalty + l2_penalty
+
             loss.backward()  # Backpropagate the loss to compute gradients
             self.optimizer.step()  # Update model parameters
             # Calculate accuracy by comparing predicted and true labels
@@ -45,6 +75,7 @@ class Trainer:
             # Accumulate total loss and accuracy
             total_loss += loss.item()
             total_accuracy += accuracy
+            self.output_hook.clear()
         # Return average loss and accuracy for the epoch
         return total_loss / len(self.train_loader), total_accuracy / len(self.train_loader)
 
@@ -110,7 +141,9 @@ def quantize_and_evaluate(model, val_loader, criterion, save_path):
     return quantized_val_loss / len(val_loader), quantized_val_accuracy / len(val_loader), evaluation_time
 
 
-def train_and_validate(model, bs, epochs=15, dataset_name='MNIST', model_save_dir="./models", use_adam: bool = False):
+def train_and_validate(model, bs, epochs=15, dataset_name='MNIST', model_save_dir="./models",
+                       l1_activation_penalty=0.0, l2_activation_penalty=0.0
+                       ):
     # Function to train, validate, quantize the model, and evaluate the quantized model
     # Define the transformations for the datasets
     # Load and transform the MNIST training dataset
@@ -186,7 +219,8 @@ def train_and_validate(model, bs, epochs=15, dataset_name='MNIST', model_save_di
     criterion = nn.CrossEntropyLoss()
 
     # Initialize the Trainer and train the model
-    trainer = Trainer(model, model, device, trainloader, valloader, optimizer, scheduler, criterion)
+    trainer = Trainer(model, model, device, trainloader, valloader, optimizer, scheduler, criterion,
+                      l1_activation_penalty=l1_activation_penalty, l2_activation_penalty=l2_activation_penalty)
     train_accuracies, val_accuracies = trainer.fit(epochs)
 
     # Ensure the directory for saving models exists
@@ -236,31 +270,31 @@ def get_kan_model(num_classes, input_channels):
 def get_kaln_model(num_classes, input_channels):
     return SimpleConvKALN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
                           degree=3, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                          degree_out=1)
 
 
 def get_kagn_model(num_classes, input_channels):
     return SimpleConvKAGN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
                           degree=3, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                          degree_out=1)
 
 
 def get_kacn_model(num_classes, input_channels):
     return SimpleConvKACN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
                           degree=6, groups=4, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                          degree_out=1)
 
 
 def get_wavkan_model(num_classes, input_channels):
     return SimpleConvWavKAN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
                             wavelet_type='mexican_hat', groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                            degree_out=1)
 
 
 def get_fast_kan_model(num_classes, input_channels):
     return SimpleFastConvKAN([8 * 4, 16 * 4, 32 * 4, 64 * 4], num_classes=num_classes, input_channels=input_channels,
                              grid_size=8, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                             degree_out=1)
 
 
 def get_simple_conv_model(num_classes, input_channels):
@@ -271,21 +305,21 @@ def get_8kan_model(num_classes, input_channels):
     return EightSimpleConvKAN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                               num_classes=num_classes, input_channels=input_channels,
                               spline_order=3, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.000000,
-                         degree_out=1)
+                              degree_out=1)
 
 
 def get_8kaln_model(num_classes, input_channels):
     return EightSimpleConvKALN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                num_classes=num_classes, input_channels=input_channels,
                                degree=3, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                               degree_out=1)
 
 
 def get_8kagn_model(num_classes, input_channels):
     return EightSimpleConvKAGN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                num_classes=num_classes, input_channels=input_channels,
                                degree=3, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                               degree_out=1)
 
 
 def get_8wavkan_model(num_classes, input_channels):
@@ -293,21 +327,21 @@ def get_8wavkan_model(num_classes, input_channels):
                                  num_classes=num_classes, input_channels=input_channels,
                                  wavelet_type='mexican_hat', groups=1,
                                  dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                                 degree_out=1)
 
 
 def get_8kacn_model(num_classes, input_channels):
     return EightSimpleConvKACN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                num_classes=num_classes, input_channels=input_channels,
                                degree=3, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                               degree_out=1)
 
 
 def get_8fast_kan_model(num_classes, input_channels):
     return EightSimpleFastConvKAN([8 * 2, 16 * 2, 32 * 2, 64 * 2, 128 * 2, 128 * 2, 128 * 4, 128 * 4],
                                   num_classes=num_classes, input_channels=input_channels,
                                   grid_size=8, groups=1, dropout=0.25, dropout_linear=0.5, l1_penalty=0.00000,
-                         degree_out=1)
+                                  degree_out=1)
 
 
 def get_8simple_conv_model(num_classes, input_channels):
@@ -317,11 +351,11 @@ def get_8simple_conv_model(num_classes, input_channels):
 
 if __name__ == '__main__':
     for dataset_name in ['MNIST', ]:
-    # for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
-    #     for model_name in ['WavKAN8', 'KAN', "KALN", "FastKAN", 'KACN', 'KAGN', 'WavKAN', "Vanilla",
-    #                        'KAN8', "KALN8", "FastKAN8", "KACN8", 'KAGN8', "Vanilla8"]:
-    #         for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
-        for model_name in ['KACN',]:
+        # for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
+        #     for model_name in ['WavKAN8', 'KAN', "KALN", "FastKAN", 'KACN', 'KAGN', 'WavKAN', "Vanilla",
+        #                        'KAN8', "KALN8", "FastKAN8", "KACN8", 'KAGN8', "Vanilla8"]:
+        #         for dataset_name in ['MNIST', 'CIFAR10', 'CIFAR100']:
+        for model_name in ['KACN', ]:
             folder_to_save = os.path.join('experiments_v3', '_'.join([model_name.lower(), dataset_name.lower()]))
             num_classes = 100 if dataset_name == 'CIFAR100' else 10
             input_channels = 1 if dataset_name == 'MNIST' else 3
