@@ -301,11 +301,12 @@ class SixteenSimpleConvKAGN(nn.Module):
                         l1_penalty
                     )
                 )
+        self.layers.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         if degree_out < 2:
-            self.output = nn.Sequential(nn.Dropout(p=dropout_linear), nn.Linear(layer_sizes[7], num_classes))
+            self.output = nn.Sequential(nn.Dropout(p=dropout_linear), nn.Linear(layer_sizes[-1], num_classes))
         else:
-            self.output = KAGN([layer_sizes[7], num_classes], dropout=dropout_linear, first_dropout=True,
+            self.output = KAGN([layer_sizes[-1], num_classes], dropout=dropout_linear, first_dropout=True,
                                degree=degree_out)
 
     def forward(self, x, **kwargs):
@@ -330,7 +331,7 @@ def get_params_to_test():
     l2_act_penalty_default = 0.0
 
     # degree without_norm
-    for degree, degree_out in [(3, 1), (5, 1), (7, 1)]:
+    for degree, degree_out in [(3, 1), ]:
         configs_to_test.append(
             {
                 'degree': degree,
@@ -497,12 +498,12 @@ if __name__ == '__main__':
     dataset_name = 'CIFAR100'
     for model_params in list_of_params_to_test:
         print(f'Running {model_params["run_name"]} experiment')
-        folder_to_save = os.path.join('experiments_reg', model_params['run_name'])
+        folder_to_save = os.path.join('experiments_reg_deep', model_params['run_name'])
         if os.path.exists(folder_to_save):
             continue
         num_classes = 100 if dataset_name == 'CIFAR100' else 10
         input_channels = 1 if dataset_name == 'MNIST' else 3
-        bs = 256
+        bs = 224
         epochs = 100
         #
         # kan_model = EightSimpleConvKAGN([16, 32, 64, 128, 256, 256, 512, 512],
@@ -516,17 +517,21 @@ if __name__ == '__main__':
         #                                 dropout_full=model_params['dropout_full'],
         #                                 dropout_degree=model_params['dropout_degree'],
         #                                 )
-        kan_model = EightSimpleConvKAGN([16 * 2, 32 * 2, 64 * 2, 128 * 2, 256 * 2, 256 * 2, 512 * 2, 512 * 2],
-                                        num_classes=num_classes,
-                                        input_channels=input_channels,
-                                        degree=model_params['degree'],
-                                        degree_out=model_params['degree_out'],
-                                        dropout_linear=model_params['dropout_linear'],
-                                        l1_penalty=model_params['l1_penalty'],
-                                        dropout_poly=model_params['dropout_poly'],
-                                        dropout_full=model_params['dropout_full'],
-                                        dropout_degree=model_params['dropout_degree'],
-                                        )
+        ws = 4
+        kan_model = SixteenSimpleConvKAGN([8 * ws, 8 * ws, 16 * ws, 16 * ws, 32 * ws, 32 * ws, 64 * ws, 64 * ws,
+                                           128 * ws, 128 * ws, 128 * ws, 128 * ws, 256 * ws, 256 * ws, 256 * ws,
+                                           256 * ws],
+                                          [2, 8, 12],
+                                          num_classes=num_classes,
+                                          input_channels=input_channels,
+                                          degree=model_params['degree'],
+                                          degree_out=model_params['degree_out'],
+                                          dropout_linear=model_params['dropout_linear'],
+                                          l1_penalty=model_params['l1_penalty'],
+                                          dropout_poly=model_params['dropout_poly'],
+                                          dropout_full=model_params['dropout_full'],
+                                          dropout_degree=model_params['dropout_degree'],
+                                          )
 
         train_and_validate(kan_model, bs, epochs=epochs,
                            dataset_name=dataset_name,
