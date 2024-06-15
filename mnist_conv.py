@@ -26,7 +26,7 @@ class OutputHook(list):
 
 class Trainer:
     def __init__(self, model_compiled, model, device, train_loader, val_loader, optimizer, scheduler, criterion,
-                 l1_activation_penalty=0.0, l2_activation_penalty=0.0):
+                 l1_activation_penalty=0.0, l2_activation_penalty=0.0, is_moe=False):
         # Initialize the Trainer class with model, device, data loaders, optimizer, scheduler, and loss function
         self.model = model  # Neural network model to be trained and validated
         self.model_compiled = model_compiled
@@ -40,6 +40,7 @@ class Trainer:
         self.l2_activation_penalty = l2_activation_penalty
         self.scaler = torch.cuda.amp.GradScaler()
         self.output_hook = OutputHook()
+        self.is_moe = is_moe
         for module in self.model.modules():
             if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer,
                                    KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
@@ -55,7 +56,10 @@ class Trainer:
                 images, labels = images.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()  # Clear previous gradients
                 output = self.model_compiled(images)  # Forward pass through the model
-                loss = self.criterion(output, labels)  # Compute loss between model output and true labels
+                moe_loss = 0
+                if self.is_moe:
+                    output, moe_loss = output
+                loss = self.criterion(output, labels) + moe_loss# Compute loss between model output and true labels
 
                 l2_penalty = 0.
                 l1_penalty = 0.
@@ -95,7 +99,10 @@ class Trainer:
             for images, labels in self.val_loader:
                 # Reshape images and move images and labels to the specified device
                 images, labels = images.to(self.device), labels.to(self.device)
-                output = self.model(images)  # Forward pass through the model
+                if self.is_moe:
+                    output, _ = self.model(images, train=False)  # Forward pass through the model
+                else:
+                    output = self.model(images)
                 # Accumulate validation loss and accuracy
                 val_loss += self.criterion(output, labels).item()
                 val_accuracy += (output.argmax(dim=1) == labels).float().mean().item()
@@ -150,7 +157,7 @@ def quantize_and_evaluate(model, val_loader, criterion, save_path):
 
 
 def train_and_validate(model, bs, epochs=15, dataset_name='MNIST', model_save_dir="./models",
-                       l1_activation_penalty=0.0, l2_activation_penalty=0.0
+                       l1_activation_penalty=0.0, l2_activation_penalty=0.0, is_moe=False
                        ):
     # Function to train, validate, quantize the model, and evaluate the quantized model
     # Define the transformations for the datasets
@@ -228,7 +235,8 @@ def train_and_validate(model, bs, epochs=15, dataset_name='MNIST', model_save_di
 
     # Initialize the Trainer and train the model
     trainer = Trainer(model, model, device, trainloader, valloader, optimizer, scheduler, criterion,
-                      l1_activation_penalty=l1_activation_penalty, l2_activation_penalty=l2_activation_penalty)
+                      l1_activation_penalty=l1_activation_penalty, l2_activation_penalty=l2_activation_penalty,
+                      is_moe=is_moe)
     train_accuracies, val_accuracies = trainer.fit(epochs)
 
     # Ensure the directory for saving models exists

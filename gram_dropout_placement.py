@@ -540,6 +540,7 @@ if __name__ == '__main__':
         _model_type = model_params.pop('model', 'shallow')
         ws = model_params.pop('width_scale', 1)
 
+        is_moe = False
         if _model_type == 'shallow':
             kan_model = EightSimpleConvKAGN([16 * ws, 32 * ws, 64 * ws, 128 * ws,
                                              256 * ws, 256 * ws, 512 * ws, 512 * ws],
@@ -566,6 +567,7 @@ if __name__ == '__main__':
                                             num_experts=8,
                                             k=2
                                             )
+            is_moe = True
         else:
 
             kan_model = SixteenSimpleConvKAGN([8 * ws, 8 * ws, 16 * ws, 16 * ws, 32 * ws, 32 * ws, 64 * ws, 64 * ws,
@@ -585,4 +587,4 @@ if __name__ == '__main__':
 
         train_and_validate(kan_model, bs, epochs=epochs,
                            dataset_name=dataset_name,
-                           model_save_dir=folder_to_save)  # Call the function to train and evaluate the model
+                           model_save_dir=folder_to_save, is_moe=is_moe)  # Call the function to train and evaluate the model

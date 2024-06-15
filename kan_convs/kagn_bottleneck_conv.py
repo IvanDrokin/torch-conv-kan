@@ -508,7 +508,7 @@ class MoEBottleNeckKAGNConvND(nn.Module):
 
         return y
 
-    def forward(self, x):
+    def forward(self, x, train=True, loss_coef=1):
 
         split_x = torch.split(x, self.input_size // self.groups, dim=1)
         output = []
@@ -519,7 +519,7 @@ class MoEBottleNeckKAGNConvND(nn.Module):
             x = self.forward_moe_inner(_x, group_ind)
             output.append(x.clone())
 
-        y, loss = self.forward_experts(torch.cat(output, dim=1))
+        y, loss = self.forward_experts(torch.cat(output, dim=1), train=train, loss_coef=loss_coef)
         output = []
         for group_ind, (_xb, _xe) in enumerate(zip(bases, torch.split(y, self.inner_dim, dim=1))):
             x = self.forward_moe_outer(_xe, _xb, group_index=group_ind)
