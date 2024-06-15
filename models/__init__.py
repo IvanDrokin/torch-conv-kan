@@ -5,6 +5,7 @@ from .baselines.conv_baseline import SimpleConv, EightSimpleConv
 from .baselines.conv_kacn_baseline import SimpleConvKACN, EightSimpleConvKACN
 from .baselines.conv_kagn_baseline import SimpleConvKAGN, EightSimpleConvKAGN
 from .baselines.conv_wavkan_baseline import SimpleConvWavKAN, EightSimpleConvWavKAN
+from .baselines.conv_moe_kagn_bn_baseline import EightSimpleMoEConvKAGNBN, SimpleMoEConvKAGNBN
 
 from .reskanet import reskanet_18x32p, reskacnet_18x32p, fast_reskanet_18x32p, reskalnet_18x32p, reskalnet_18x64p, \
     reskalnet_50x64p, moe_reskalnet_50x64p, reskalnet_101x64p, moe_reskalnet_101x64p, \

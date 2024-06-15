@@ -8,6 +8,7 @@ from torch.nn.functional import conv2d
 from kans import KAGN
 from mnist_conv import train_and_validate
 from utils import L1, NoiseInjection
+from models import SimpleMoEConvKAGNBN
 
 
 class KAGNConvNDLayer(nn.Module):
@@ -502,7 +503,7 @@ def get_params_to_test_scales():
     # degree without_norm
     for degree, degree_out in [(7, 3), (5, 3), (3, 3), (7, 1), (5, 1), (3, 1)]:
         for ws in [8, 4, 2, 1]:
-            for model in ['deep', 'shallow']:
+            for model in ['deep', 'shallow', 'moe']:
                 configs_to_test.append(
                     {
                         'degree': degree,
@@ -551,6 +552,19 @@ if __name__ == '__main__':
                                             dropout_poly=model_params['dropout_poly'],
                                             dropout_full=model_params['dropout_full'],
                                             dropout_degree=model_params['dropout_degree'],
+                                            )
+        elif _model_type == 'moe':
+            kan_model = SimpleMoEConvKAGNBN([16 * ws, 32 * ws, 64 * ws, 128 * ws,
+                                             256 * ws, 256 * ws, 512 * ws, 512 * ws],
+                                            num_classes=num_classes,
+                                            input_channels=input_channels,
+                                            degree=model_params['degree'],
+                                            degree_out=model_params['degree_out'],
+                                            dropout_linear=model_params['dropout_linear'],
+                                            l1_penalty=model_params['l1_penalty'],
+                                            dropout=model_params['dropout_full'],
+                                            num_experts=8,
+                                            k=2
                                             )
         else:
 
