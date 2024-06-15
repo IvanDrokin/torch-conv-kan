@@ -61,6 +61,7 @@ class SimpleMoEConvKAGNBN(nn.Module):
         for layer in self.layers:
             x, _moe_loss = layer(x, train=train, loss_coef=loss_coef)
             moe_loss += moe_loss
+        x = self.pool(x)
         x = torch.flatten(x, 1)
         x = self.output(x)
         return x, moe_loss
@@ -141,6 +142,7 @@ class EightSimpleMoEConvKAGNBN(nn.Module):
         for layer in self.layers:
             x, _moe_loss = layer(x, train=train, loss_coef=loss_coef)
             moe_loss += moe_loss
+        x = self.pool(x)
         x = torch.flatten(x, 1)
         x = self.output(x)
         return x, moe_loss
