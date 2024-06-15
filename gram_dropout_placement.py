@@ -501,8 +501,8 @@ def get_params_to_test_scales():
     dropout_full_default = 0.05
 
     # degree without_norm
-    for degree, degree_out in [(7, 3), (5, 3), (3, 3), (7, 1), (5, 1), (3, 1)]:
-        for ws in [8, 4, 2, 1]:
+    for degree, degree_out in [(7, 1), (5, 1), (3, 1)]:
+        for ws in [4, 2, 1]:
             for model in ['deep', 'shallow', 'moe']:
                 configs_to_test.append(
                     {
@@ -510,7 +510,7 @@ def get_params_to_test_scales():
                         'degree_out': degree_out,
                         "width_scale": ws,
                         'model': model,
-                        'dropout_linear': 0.1,
+                        'dropout_linear': 0.05,
                         'l1_penalty': 0,
                         'dropout_poly': 0,
                         'dropout_full': dropout_full_default,

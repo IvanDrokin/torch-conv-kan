@@ -26,7 +26,7 @@ class SimpleMoEConvKAGNBN(nn.Module):
     ):
         super(SimpleMoEConvKAGNBN, self).__init__()
 
-        self.layers = nn.Sequential(
+        self.layers = nn.ModuleList([
             MoEBottleNeckKAGNConv2DLayer(input_channels, layer_sizes[0], kernel_size=3, degree=degree, groups=1,
                                          padding=1, stride=1,
                                          dilation=1, affine=affine, norm_layer=norm_layer, num_experts=num_experts,
@@ -47,6 +47,7 @@ class SimpleMoEConvKAGNBN(nn.Module):
                                             num_experts=num_experts, noisy_gating=noisy_gating, k=k),
                l1_penalty),
             nn.AdaptiveAvgPool2d((1, 1))
+        ]
         )
 
         if degree_out < 2:
@@ -56,7 +57,13 @@ class SimpleMoEConvKAGNBN(nn.Module):
                                degree=degree_out)
 
     def forward(self, x):
-        x = self.layers(x)
+
+        moe_loss = 0
+        for layer in self.layers:
+            x = layer(x)
+            if isinstance(x, tuple):
+                x, _moe_loss = x
+                moe_loss+= moe_loss
         x = torch.flatten(x, 1)
         x = self.output(x)
         return x
@@ -82,7 +89,7 @@ class EightSimpleMoEConvKAGNBN(nn.Module):
     ):
         super(EightSimpleMoEConvKAGNBN, self).__init__()
 
-        self.layers = nn.Sequential(
+        self.layers = nn.ModuleList([
             MoEBottleNeckKAGNConv2DLayer(input_channels, layer_sizes[0], kernel_size=3, degree=degree, groups=1,
                                          padding=1, stride=1,
                                          dilation=1, affine=affine, norm_layer=norm_layer, num_experts=num_experts,
@@ -123,6 +130,7 @@ class EightSimpleMoEConvKAGNBN(nn.Module):
                                             num_experts=num_experts, noisy_gating=noisy_gating, k=k),
                l1_penalty),
             nn.AdaptiveAvgPool2d((1, 1))
+            ]
         )
 
         if degree_out < 2:
@@ -132,7 +140,12 @@ class EightSimpleMoEConvKAGNBN(nn.Module):
                                degree=degree_out)
 
     def forward(self, x):
-        x = self.layers(x)
+        moe_loss = 0
+        for layer in self.layers:
+            x = layer(x)
+            if isinstance(x, tuple):
+                x, _moe_loss = x
+                moe_loss += moe_loss
         x = torch.flatten(x, 1)
         x = self.output(x)
         return x
