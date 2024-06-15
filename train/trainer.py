@@ -26,6 +26,7 @@ import wandb
 from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
 from .metrics import get_metrics
 from .losses import Dice
+from .lbfgs import LBFGS
 
 logger = get_logger(__name__)
 
@@ -161,6 +162,16 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                          lr=cfg.optim.learning_rate,
                          weight_decay=cfg.optim.learning_rate,
                          use_triton=cfg.optim.use_triton)
+    elif cfg.optim.type == 'lbfgs':
+        optimizer = LBFGS(params_to_optimize,
+                          lr=cfg.optim.learning_rate,
+                          max_iter=cfg.optim.max_iter,
+                          tolerance_grad=1e-7,
+                          tolerance_change=1e-9,
+                          tolerance_ys=1e-32,
+                          history_size=cfg.optim.history_size,
+                          line_search_fn="strong_wolfe"
+                          )
 
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,
@@ -251,38 +262,109 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
         model.train()
         for step, batch in enumerate(train_dataloader):
 
-            with accelerator.accumulate(model):
-                # Convert images to latent space
-                images, labels = batch
+            if cfg.optim.type == 'lbfgs':
+                global additional_metrics, loss
 
-                if cfg.use_torch_compile:
-                    output = compiled_model(images)
-                else:
-                    output = model(images)
-                if cfg.model.is_moe:
-                    output, moe_loss = output
-                else:
-                    moe_loss = None
+                def closure():
+                    global additional_metrics, loss
+                    with accelerator.accumulate(model):
+                        # Convert images to latent space
+                        images, labels = batch
 
-                l2_penalty = 0.
-                l1_penalty = 0.
-                for _output in output_hook:
-                    if cfg.model.l1_activation_penalty > 0:
-                        l1_penalty += torch.norm(_output, 1, dim=0).mean()
-                    if cfg.model.l2_activation_penalty > 0:
-                        l2_penalty += torch.norm(_output, 2, dim=0).mean()
-                l2_penalty *= cfg.model.l2_activation_penalty
-                l1_penalty *= cfg.model.l2_activation_penalty
+                        if cfg.use_torch_compile:
+                            output = compiled_model(images)
+                        else:
+                            output = model(images)
+                        if cfg.model.is_moe:
+                            output, moe_loss = output
+                        else:
+                            moe_loss = None
 
-                if isinstance(output, tuple):
-                    loss = 0.
-                    for _output in output:
-                        loss = loss + loss_func(_output, labels)
-                else:
-                    loss = loss_func(output, labels)
-                loss = loss + l1_penalty + l2_penalty
-                if moe_loss is not None:
-                    loss += moe_loss
+                        l2_penalty = 0.
+                        l1_penalty = 0.
+                        for _output in output_hook:
+                            if cfg.model.l1_activation_penalty > 0:
+                                l1_penalty += torch.norm(_output, 1, dim=0).mean()
+                            if cfg.model.l2_activation_penalty > 0:
+                                l2_penalty += torch.norm(_output, 2, dim=0).mean()
+                        l2_penalty *= cfg.model.l2_activation_penalty
+                        l1_penalty *= cfg.model.l2_activation_penalty
+
+                        if isinstance(output, tuple):
+                            loss = 0.
+                            for _output in output:
+                                loss = loss + loss_func(_output, labels)
+                        else:
+                            loss = loss_func(output, labels)
+                        loss = loss + l1_penalty + l2_penalty
+                        if moe_loss is not None:
+                            loss += moe_loss
+
+                    if cfg.metrics.report_type == 'classification':
+                        if isinstance(output, tuple):
+                            acc = metric_acc(output[-1], labels)
+                            acc_t5 = metric_acc_top5(output[-1], labels)
+                        else:
+                            acc = metric_acc(output, labels)
+                            acc_t5 = metric_acc_top5(output, labels)
+
+                        additional_metrics = {"train_acc": acc.detach().item(),
+                                              "train_acc_top5": acc_t5.detach().item()}
+                    if cfg.metrics.report_type == 'segmentation':
+                        if isinstance(output, tuple):
+                            model_out = output[0]
+                        else:
+                            model_out = output
+                        dice_val = dice_metric(model_out, labels)
+                        additional_metrics = {"train_dice": dice_val.detach().item(), }
+
+                        accelerator.backward(loss)
+                        if accelerator.sync_gradients:
+                            if cfg.use_torch_compile:
+                                params_to_clip = compiled_model.parameters()
+                            else:
+                                params_to_clip = model.parameters()
+                            accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
+                        optimizer.step()
+                        lr_scheduler.step()
+                        optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
+                        output_hook.clear()
+                        return loss
+                optimizer.step(closure)
+            else:
+
+                with accelerator.accumulate(model):
+                    # Convert images to latent space
+                    images, labels = batch
+
+                    if cfg.use_torch_compile:
+                        output = compiled_model(images)
+                    else:
+                        output = model(images)
+                    if cfg.model.is_moe:
+                        output, moe_loss = output
+                    else:
+                        moe_loss = None
+
+                    l2_penalty = 0.
+                    l1_penalty = 0.
+                    for _output in output_hook:
+                        if cfg.model.l1_activation_penalty > 0:
+                            l1_penalty += torch.norm(_output, 1, dim=0).mean()
+                        if cfg.model.l2_activation_penalty > 0:
+                            l2_penalty += torch.norm(_output, 2, dim=0).mean()
+                    l2_penalty *= cfg.model.l2_activation_penalty
+                    l1_penalty *= cfg.model.l2_activation_penalty
+
+                    if isinstance(output, tuple):
+                        loss = 0.
+                        for _output in output:
+                            loss = loss + loss_func(_output, labels)
+                    else:
+                        loss = loss_func(output, labels)
+                    loss = loss + l1_penalty + l2_penalty
+                    if moe_loss is not None:
+                        loss += moe_loss
 
                 if cfg.metrics.report_type == 'classification':
                     if isinstance(output, tuple):
@@ -302,17 +384,17 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     dice_val = dice_metric(model_out, labels)
                     additional_metrics = {"train_dice": dice_val.detach().item(), }
 
-                accelerator.backward(loss)
-                if accelerator.sync_gradients:
-                    if cfg.use_torch_compile:
-                        params_to_clip = compiled_model.parameters()
-                    else:
-                        params_to_clip = model.parameters()
-                    accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
-                output_hook.clear()
+                    accelerator.backward(loss)
+                    if accelerator.sync_gradients:
+                        if cfg.use_torch_compile:
+                            params_to_clip = compiled_model.parameters()
+                        else:
+                            params_to_clip = model.parameters()
+                        accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
+                    output_hook.clear()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
