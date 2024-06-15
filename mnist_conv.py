@@ -38,7 +38,7 @@ class Trainer:
         self.criterion = criterion  # Loss function to measure model performance
         self.l1_activation_penalty = l1_activation_penalty
         self.l2_activation_penalty = l2_activation_penalty
-
+        self.scaler = torch.cuda.amp.GradScaler()
         self.output_hook = OutputHook()
         for module in self.model.modules():
             if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer,
@@ -51,25 +51,33 @@ class Trainer:
         total_loss, total_accuracy = 0, 0  # Initialize accumulators for loss and accuracy
         for images, labels in self.train_loader:
             # Reshape images and move images and labels to the specified device
-            images, labels = images.to(self.device), labels.to(self.device)
-            self.optimizer.zero_grad()  # Clear previous gradients
-            output = self.model_compiled(images)  # Forward pass through the model
-            loss = self.criterion(output, labels)  # Compute loss between model output and true labels
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                images, labels = images.to(self.device), labels.to(self.device)
+                self.optimizer.zero_grad()  # Clear previous gradients
+                output = self.model_compiled(images)  # Forward pass through the model
+                loss = self.criterion(output, labels)  # Compute loss between model output and true labels
 
-            l2_penalty = 0.
-            l1_penalty = 0.
-            for _output in self.output_hook:
-                if self.l1_activation_penalty > 0:
-                    l1_penalty += torch.norm(_output, 1, dim=0).mean()
-                if self.l2_activation_penalty > 0:
-                    l2_penalty += torch.norm(_output, 2, dim=0).mean()
-            l2_penalty *= self.l2_activation_penalty
-            l1_penalty *= self.l1_activation_penalty
+                l2_penalty = 0.
+                l1_penalty = 0.
+                for _output in self.output_hook:
+                    if self.l1_activation_penalty > 0:
+                        l1_penalty += torch.norm(_output, 1, dim=0).mean()
+                    if self.l2_activation_penalty > 0:
+                        l2_penalty += torch.norm(_output, 2, dim=0).mean()
+                l2_penalty *= self.l2_activation_penalty
+                l1_penalty *= self.l1_activation_penalty
 
-            loss = loss + l1_penalty + l2_penalty
+                loss = loss + l1_penalty + l2_penalty
+            self.scaler.scale(loss).backward()
 
-            loss.backward()  # Backpropagate the loss to compute gradients
-            self.optimizer.step()  # Update model parameters
+            # Unscales gradients and calls
+            # or skips optimizer.step()
+            self.scaler.step(self.optimizer)
+
+            # Updates the scale for next iteration
+            self.scaler.update()
+            # loss.backward()  # Backpropagate the loss to compute gradients
+            # self.optimizer.step()  # Update model parameters
             # Calculate accuracy by comparing predicted and true labels
             accuracy = (output.argmax(dim=1) == labels).float().mean().item()
             # Accumulate total loss and accuracy

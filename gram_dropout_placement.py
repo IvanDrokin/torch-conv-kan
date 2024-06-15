@@ -492,46 +492,82 @@ def get_params_to_test():
     return configs_to_test
 
 
+def get_params_to_test_scales():
+    configs_to_test = []
+
+    # degree_default = 3
+    # degree_out_default = 1
+    dropout_full_default = 0.05
+
+    # degree without_norm
+    for degree, degree_out in [(7, 3), (5, 3), (3, 3), (7, 1), (5, 1), (3, 1)]:
+        for ws in [8, 4, 2, 1]:
+            for model in ['deep', 'shallow']:
+                configs_to_test.append(
+                    {
+                        'degree': degree,
+                        'degree_out': degree_out,
+                        "width_scale": ws,
+                        'model': model,
+                        'dropout_linear': 0.1,
+                        'l1_penalty': 0,
+                        'dropout_poly': 0,
+                        'dropout_full': dropout_full_default,
+                        'dropout_degree': 0,
+                        'run_name': f"{model}_width_{ws}_degree_{degree}_degree_out_{degree_out}",
+                        "drop_type": 'noisy',
+                        'l1_activation_penalty': 0,
+                        'l2_act_penalty_default': 0
+                    }
+                )
+    return configs_to_test
+
+
 if __name__ == '__main__':
-    list_of_params_to_test = get_params_to_test()
+    list_of_params_to_test = get_params_to_test_scales()
     print(f"Total experiments to run: {len(list_of_params_to_test)}")
     dataset_name = 'CIFAR100'
     for model_params in list_of_params_to_test:
         print(f'Running {model_params["run_name"]} experiment')
-        folder_to_save = os.path.join('experiments_reg_deep', model_params['run_name'])
+        folder_to_save = os.path.join('experiments_scale', model_params['run_name'])
         if os.path.exists(folder_to_save):
             continue
         num_classes = 100 if dataset_name == 'CIFAR100' else 10
         input_channels = 1 if dataset_name == 'MNIST' else 3
         bs = 224
         epochs = 100
-        #
-        # kan_model = EightSimpleConvKAGN([16, 32, 64, 128, 256, 256, 512, 512],
-        #                                 num_classes=num_classes,
-        #                                 input_channels=input_channels,
-        #                                 degree=model_params['degree'],
-        #                                 degree_out=model_params['degree_out'],
-        #                                 dropout_linear=model_params['dropout_linear'],
-        #                                 l1_penalty=model_params['l1_penalty'],
-        #                                 dropout_poly=model_params['dropout_poly'],
-        #                                 dropout_full=model_params['dropout_full'],
-        #                                 dropout_degree=model_params['dropout_degree'],
-        #                                 )
-        ws = 4
-        kan_model = SixteenSimpleConvKAGN([8 * ws, 8 * ws, 16 * ws, 16 * ws, 32 * ws, 32 * ws, 64 * ws, 64 * ws,
-                                           128 * ws, 128 * ws, 128 * ws, 128 * ws, 256 * ws, 256 * ws, 256 * ws,
-                                           256 * ws],
-                                          [2, 8, 12],
-                                          num_classes=num_classes,
-                                          input_channels=input_channels,
-                                          degree=model_params['degree'],
-                                          degree_out=model_params['degree_out'],
-                                          dropout_linear=model_params['dropout_linear'],
-                                          l1_penalty=model_params['l1_penalty'],
-                                          dropout_poly=model_params['dropout_poly'],
-                                          dropout_full=model_params['dropout_full'],
-                                          dropout_degree=model_params['dropout_degree'],
-                                          )
+        _model_type = model_params.pop('model', 'shallow')
+        ws = model_params.pop('width_scale', 1)
+
+        if _model_type == 'shallow':
+            kan_model = EightSimpleConvKAGN([16 * ws, 32 * ws, 64 * ws, 128 * ws,
+                                             256 * ws, 256 * ws, 512 * ws, 512 * ws],
+                                            num_classes=num_classes,
+                                            input_channels=input_channels,
+                                            degree=model_params['degree'],
+                                            degree_out=model_params['degree_out'],
+                                            dropout_linear=model_params['dropout_linear'],
+                                            l1_penalty=model_params['l1_penalty'],
+                                            dropout_poly=model_params['dropout_poly'],
+                                            dropout_full=model_params['dropout_full'],
+                                            dropout_degree=model_params['dropout_degree'],
+                                            )
+        else:
+
+            kan_model = SixteenSimpleConvKAGN([8 * ws, 8 * ws, 16 * ws, 16 * ws, 32 * ws, 32 * ws, 64 * ws, 64 * ws,
+                                               128 * ws, 128 * ws, 128 * ws, 128 * ws, 256 * ws, 256 * ws, 256 * ws,
+                                               256 * ws],
+                                              [2, 4, 8],
+                                              num_classes=num_classes,
+                                              input_channels=input_channels,
+                                              degree=model_params['degree'],
+                                              degree_out=model_params['degree_out'],
+                                              dropout_linear=model_params['dropout_linear'],
+                                              l1_penalty=model_params['l1_penalty'],
+                                              dropout_poly=model_params['dropout_poly'],
+                                              dropout_full=model_params['dropout_full'],
+                                              dropout_degree=model_params['dropout_degree'],
+                                              )
 
         train_and_validate(kan_model, bs, epochs=epochs,
                            dataset_name=dataset_name,

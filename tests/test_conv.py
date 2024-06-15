@@ -207,7 +207,7 @@ def test_kalgcn_conv_1d(dropout, groups, conv_class):
                                                                           [KALNConv2DLayer, KAGNConv2DLayer,
                                                                            KACNConv2DLayer, KAJNConv2DLayer,
                                                                            KABNConv2DLayer]))
-def test_kalgcn_conv_1d(dropout, groups, conv_class):
+def test_kalgcn_conv_2d(dropout, groups, conv_class):
     bs = 6
     spatial_dim = 32
     input_dim = 4
