@@ -318,19 +318,19 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                         dice_val = dice_metric(model_out, labels)
                         additional_metrics = {"train_dice": dice_val.detach().item(), }
 
-                        accelerator.backward(loss)
-                        if accelerator.sync_gradients:
-                            if cfg.use_torch_compile:
-                                params_to_clip = compiled_model.parameters()
-                            else:
-                                params_to_clip = model.parameters()
-                            accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
-                        optimizer.step()
-                        lr_scheduler.step()
-                        optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
-                        output_hook.clear()
-                        return loss
+                    accelerator.backward(loss)
+                    if accelerator.sync_gradients:
+                        if cfg.use_torch_compile:
+                            params_to_clip = compiled_model.parameters()
+                        else:
+                            params_to_clip = model.parameters()
+                        accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
+                    # optimizer.step()
+                    # optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
+                    output_hook.clear()
+                    return loss
                 optimizer.step(closure)
+                lr_scheduler.step()
             else:
 
                 with accelerator.accumulate(model):
@@ -384,17 +384,17 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     dice_val = dice_metric(model_out, labels)
                     additional_metrics = {"train_dice": dice_val.detach().item(), }
 
-                    accelerator.backward(loss)
-                    if accelerator.sync_gradients:
-                        if cfg.use_torch_compile:
-                            params_to_clip = compiled_model.parameters()
-                        else:
-                            params_to_clip = model.parameters()
-                        accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
-                    output_hook.clear()
+                accelerator.backward(loss)
+                if accelerator.sync_gradients:
+                    if cfg.use_torch_compile:
+                        params_to_clip = compiled_model.parameters()
+                    else:
+                        params_to_clip = model.parameters()
+                    accelerator.clip_grad_norm_(params_to_clip, cfg.max_grad_norm)
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
+                output_hook.clear()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
