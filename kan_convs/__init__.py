@@ -16,3 +16,6 @@ from .moe_kan import MoEKAGNConv1DLayer, MoEKAGNConv2DLayer, MoEKAGNConv3DLayer
 from .moe_kan import MoEKANConv1DLayer, MoEKANConv2DLayer, MoEKANConv3DLayer
 from .moe_kan import MoEFastKANConv1DLayer, MoEFastKANConv2DLayer, MoEFastKANConv3DLayer
 from .moe_kan import MoEWavKANConv1DLayer, MoEWavKANConv2DLayer, MoEWavKANConv3DLayer
+
+from .attention_conv import SelfKAGNtention1D, SelfKAGNtention2D, SelfKAGNtention3D
+from .attention_conv import BottleneckSelfKAGNtention1D, BottleneckSelfKAGNtention2D, BottleneckSelfKAGNtention3D

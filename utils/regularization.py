@@ -25,6 +25,33 @@ class NoiseInjection(nn.Module):
         return x
 
 
+class NoiseMultiplicativeInjection(nn.Module):
+    def __init__(self, p: float = 0.05, alpha: float = 0.05, betta: float = 0.01):
+        super(NoiseMultiplicativeInjection, self).__init__()
+        self.p = p
+        self.alpha = alpha
+        self.betta = betta
+
+    def get_noise(self, x):
+        std = torch.std(x, dim=1, keepdim=True)
+        noise = torch.randn(x.shape, device=x.device, dtype=x.dtype) * std
+        return noise
+
+    def get_m_noise(self, x):
+        noise = torch.randn(x.shape, device=x.device, dtype=x.dtype) * self.betta + 1
+        return noise
+
+    def forward(self, x):
+        if self.training:
+            mask = torch.rand(x.shape, device=x.device, dtype=x.dtype)
+            mask = (mask < self.p).float() * 1
+            mask_m = torch.rand(x.shape, device=x.device, dtype=x.dtype)
+            mask_m = (mask_m < self.p).float() * 1
+            x = x + x * mask_m * self.get_m_noise(x) + self.alpha * mask * self.get_noise(x)
+            return x
+        return x
+
+
 class WeightDecay(nn.Module):
     def __init__(self, module, weight_decay, name: str = None):
         if weight_decay < 0.0:
