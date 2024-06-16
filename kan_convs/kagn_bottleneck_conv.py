@@ -303,7 +303,8 @@ class MoEBottleNeckKAGNConvND(nn.Module):
         else:
             self.inner_dim = inner_dim
 
-        self.experts = nn.ModuleList([KAGNExpert(conv_w_fun, inner_dim*groups, inner_dim*groups, degree, kernel_size=kernel_size,
+        self.experts = nn.ModuleList([KAGNExpert(conv_w_fun, self.inner_dim*groups, self.inner_dim*groups,
+                                                 degree, kernel_size=kernel_size,
                                                  stride=stride, padding=padding,
                                                  groups=groups, dilation=dilation, dropout=dropout, ndim=ndim) for _ in
                                       range(num_experts)])

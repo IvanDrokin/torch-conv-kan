@@ -67,7 +67,6 @@ class SimpleMoEConvKAGNBN(nn.Module):
         return x, moe_loss
 
 
-
 class EightSimpleMoEConvKAGNBN(nn.Module):
     def __init__(
             self,

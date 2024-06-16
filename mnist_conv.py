@@ -144,6 +144,8 @@ def quantize_and_evaluate(model, val_loader, criterion, save_path):
             # Reshape images and move images and labels to the CPU
             images, labels = images.to(torch.device('cpu')), labels.to(torch.device('cpu'))
             output = quantized_model(images)  # Forward pass through the quantized model
+            if isinstance(output, tuple):
+                output = output[0]
             # Accumulate validation loss and accuracy for the quantized model
             quantized_val_loss += criterion(output, labels).item()
             quantized_val_accuracy += (output.argmax(dim=1) == labels).float().mean().item()
