@@ -339,16 +339,19 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg):
                 "net_state_dict": accelerator.unwrap_model(model).state_dict(),
                 "optimizer_state_dict": accelerator.unwrap_model(optimizer).state_dict(),
             }
-            with tempfile.TemporaryDirectory() as checkpoint_dir:
-                data_path = Path(checkpoint_dir) / "data.pkl"
-                with open(data_path, "wb") as fp:
-                    pickle.dump(checkpoint_data, fp)
+            if cfg.raytune.save_checkpoints and epoch % cfg.raytune.save_every_n_epochs == 0:
+                with tempfile.TemporaryDirectory() as checkpoint_dir:
+                    data_path = Path(checkpoint_dir) / "data.pkl"
+                    with open(data_path, "wb") as fp:
+                        pickle.dump(checkpoint_data, fp)
 
-                checkpoint = Checkpoint.from_directory(checkpoint_dir)
-                train.report(
-                    {cfg.tracking_metric: metrics[cfg.tracking_metric]},
-                    checkpoint=checkpoint,
-                )
+                    checkpoint = Checkpoint.from_directory(checkpoint_dir)
+            else:
+                checkpoint = None
+            train.report(
+                {cfg.tracking_metric: metrics[cfg.tracking_metric]},
+                checkpoint=checkpoint,
+            )
 
         gc.collect()
 
@@ -447,3 +450,4 @@ def tune_params(search_config, model, config, data_function, loss_func, num_samp
     print(f"Best trial config: {best_trial.config}")
     print(f"Best trial final validation loss: {best_trial.last_result['loss']}")
     print(f"Best trial final validation accuracy: {best_trial.last_result['accuracy']}")
+    return best_trial.config

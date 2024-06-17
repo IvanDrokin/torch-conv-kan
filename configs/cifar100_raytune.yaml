@@ -17,8 +17,6 @@ max_grad_norm: 2.
 use_torch_compile: false
 unpack_data: true
 
-checkpointing_steps: 5000
-checkpoints_total_limit: 1000
 find_unused_parameters: false
 
 tracking_metric: 'accuracy'
@@ -53,7 +51,7 @@ optim:
   set_grads_to_none: false
 
 wandb:
-  entity: 'ivan-s-drokin'
+  entity: 'add your entity'
   project_name: 'cifar100-tune_eight'
 
 loss:
@@ -67,3 +65,5 @@ raytune:
   metric: 'accuracy'
   mode: 'max'
   optuna: true
+  save_checkpoints: false
+  save_every_n_epochs: 1

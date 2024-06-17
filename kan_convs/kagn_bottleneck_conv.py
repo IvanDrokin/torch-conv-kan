@@ -7,7 +7,7 @@ from torch.distributions.normal import Normal
 from torch.nn.functional import conv3d, conv2d, conv1d
 
 from utils import NoiseInjection
-from .moe_kan import SparseDispatcher
+from .moe_utils import SparseDispatcher
 
 
 class BottleNeckKAGNConvNDLayer(nn.Module):

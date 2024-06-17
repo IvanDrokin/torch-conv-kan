@@ -33,6 +33,11 @@ cfgs: Dict[str, List[Union[str, int]]] = {
     "VGG16v4": [16, 16, "M", 32, 32, "M", 64, 64, 64, "M", 128, 128, 128, "M", 128, 128, 128, "M", 256, 256],
     "VGG19v4": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "M", 128, 128, 128, 128, "M", 128, 128, 128, 128, "M", 256,
                 256],
+    "VGG11v4sa": [16, "M", 32, "M", 64, 64, "M", 128, 128, "SAM", 128, 128, "SAM", 256, 256],
+    "VGG13v4sa": [16, 16, "M", 32, 32, "M", 64, 64, "M", 128, 128, "SAM", 128, 128, "SAM", 256, 256],
+    "VGG16v4sa": [16, 16, "M", 32, 32, "M", 64, 64, 64, "M", 128, 128, 128, "SAM", 128, 128, 128, "SAM", 256, 256],
+    "VGG19v4sa": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "M", 128, 128, 128, 128, "SAM", 128, 128, 128, 128, "SAM", 256,
+                256]
 }
 
 
@@ -65,8 +70,9 @@ class VGG(nn.Module):
         for l_index, v in enumerate(cfg):
             if v == "M":
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            elif v == 'SAM':
+                layers += [kan_att_fun(in_channels), nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
-
                 v = cast(int, v)
                 if l_index == 0:
                     conv2d = conv_fun_first(in_channels, v * width_scale)
