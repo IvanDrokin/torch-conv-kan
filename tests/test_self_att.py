@@ -3,7 +3,7 @@ import itertools
 import pytest
 import torch
 
-from kan_convs import BottleneckSelfKAGNtention1D, BottleneckSelfKAGNtention2D, BottleneckSelfKAGNtention3D
+from kan_convs import BottleNeckSelfKAGNtention1D, BottleNeckSelfKAGNtention2D, BottleNeckSelfKAGNtention3D
 from kan_convs import SelfKAGNtention1D, SelfKAGNtention2D, SelfKAGNtention3D
 
 
@@ -63,7 +63,7 @@ def test_sa_bn_kagn_conv_1d(dropout, groups, inner_projection):
     padding = 1
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim))
-    conv = BottleneckSelfKAGNtention1D(input_dim, inner_projection, kernel_size=kernel_size, groups=groups,
+    conv = BottleNeckSelfKAGNtention1D(input_dim, inner_projection, kernel_size=kernel_size, groups=groups,
                                        padding=padding,
                                        stride=1, dilation=1, dropout=dropout, degree=3)
     out = conv(input_tensor)
@@ -80,7 +80,7 @@ def test_sa_bn_kagn_conv_2d(dropout, groups, inner_projection):
     padding = 1
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim))
-    conv = BottleneckSelfKAGNtention2D(input_dim, inner_projection, kernel_size=kernel_size, groups=groups,
+    conv = BottleNeckSelfKAGNtention2D(input_dim, inner_projection, kernel_size=kernel_size, groups=groups,
                                        padding=padding,
                                        stride=1, dilation=1, dropout=dropout, degree=3)
     out = conv(input_tensor)
@@ -97,7 +97,7 @@ def test_sa_bn_kagn_conv_3d(dropout, groups, inner_projection):
     padding = 1
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim, spatial_dim))
-    conv = BottleneckSelfKAGNtention3D(input_dim, inner_projection, kernel_size=kernel_size, groups=groups,
+    conv = BottleNeckSelfKAGNtention3D(input_dim, inner_projection, kernel_size=kernel_size, groups=groups,
                                        padding=padding,
                                        stride=1, dilation=1, dropout=dropout, degree=3)
     out = conv(input_tensor)

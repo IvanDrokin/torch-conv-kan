@@ -13,6 +13,9 @@ from .kagn_conv import KAGNConv1DLayer, KAGNConv2DLayer, KAGNConv3DLayer
 from .kajn_conv import KAJNConv1DLayer, KAJNConv2DLayer, KAJNConv3DLayer
 from .kaln_conv import KALNConv1DLayer, KALNConv2DLayer, KALNConv3DLayer
 from .kan_conv import KANConv1DLayer, KANConv2DLayer, KANConv3DLayer
+from .relukan_bottleneck_conv import BottleNeckReLUKANConv1DLayer, BottleNeckReLUKANConv2DLayer, \
+    BottleNeckReLUKANConv3DLayer
+from .relukan_conv import ReLUKANConv1DLayer, ReLUKANConv2DLayer, ReLUKANConv3DLayer
 from .wav_kan import WavKANConv1DLayer, WavKANConv2DLayer, WavKANConv3DLayer
 
 
@@ -28,17 +31,17 @@ class SelfKANtentionND(nn.Module):
 
         if conv_kan_layer in [FastKANConv1DLayer, KANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer, KAGNConv1DLayer,
                               WavKANConv1DLayer, KAJNConv1DLayer, KABNConv1DLayer, BottleNeckKAGNConv1DLayer,
-                              MoEBottleNeckKAGNConv1DLayer]:
+                              MoEBottleNeckKAGNConv1DLayer, ReLUKANConv1DLayer, BottleNeckReLUKANConv1DLayer]:
             self.ndim = 1
             self.norm_layer = nn.BatchNorm1d(input_dim)
         elif conv_kan_layer in [FastKANConv2DLayer, KANConv2DLayer, KALNConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer,
                                 WavKANConv2DLayer, KAJNConv2DLayer, KABNConv2DLayer, BottleNeckKAGNConv2DLayer,
-                                MoEBottleNeckKAGNConv2DLayer]:
+                                MoEBottleNeckKAGNConv2DLayer, ReLUKANConv2DLayer, BottleNeckReLUKANConv2DLayer]:
             self.ndim = 2
             self.norm_layer = nn.BatchNorm2d(input_dim)
         elif conv_kan_layer in [FastKANConv3DLayer, KANConv3DLayer, KALNConv3DLayer, KACNConv3DLayer, KAGNConv3DLayer,
                                 WavKANConv3DLayer, KAJNConv3DLayer, KABNConv3DLayer, BottleNeckKAGNConv3DLayer,
-                                MoEBottleNeckKAGNConv3DLayer]:
+                                MoEBottleNeckKAGNConv3DLayer, ReLUKANConv3DLayer, BottleNeckReLUKANConv3DLayer]:
             self.ndim = 3
             self.norm_layer = nn.BatchNorm3d(input_dim)
         assert self.ndim is not None, "Unsupported conv kan layer"
@@ -131,11 +134,11 @@ class SelfKAGNtention3D(SelfKANtentionND):
                                                 norm_layer=norm_layer, **norm_kwargs)
 
 
-class BottleneckSelfKAGNtention1D(SelfKANtentionND):
+class BottleNeckSelfKAGNtention1D(SelfKANtentionND):
     def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
                  padding=0, stride=1, dilation=1, dropout: float = 0.0,
                  norm_layer=nn.BatchNorm1d, **norm_kwargs):
-        super(BottleneckSelfKAGNtention1D, self).__init__(input_dim, BottleNeckKAGNConv1DLayer,
+        super(BottleNeckSelfKAGNtention1D, self).__init__(input_dim, BottleNeckKAGNConv1DLayer,
                                                           inner_projection=inner_projection,
                                                           kernel_size=kernel_size, degree=degree, groups=groups,
                                                           padding=padding,
@@ -143,11 +146,11 @@ class BottleneckSelfKAGNtention1D(SelfKANtentionND):
                                                           norm_layer=norm_layer, **norm_kwargs)
 
 
-class BottleneckSelfKAGNtention2D(SelfKANtentionND):
+class BottleNeckSelfKAGNtention2D(SelfKANtentionND):
     def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
                  padding=0, stride=1, dilation=1, dropout: float = 0.0,
                  norm_layer=nn.BatchNorm2d, **norm_kwargs):
-        super(BottleneckSelfKAGNtention2D, self).__init__(input_dim, BottleNeckKAGNConv2DLayer,
+        super(BottleNeckSelfKAGNtention2D, self).__init__(input_dim, BottleNeckKAGNConv2DLayer,
                                                           inner_projection=inner_projection,
                                                           kernel_size=kernel_size, degree=degree, groups=groups,
                                                           padding=padding,
@@ -155,13 +158,85 @@ class BottleneckSelfKAGNtention2D(SelfKANtentionND):
                                                           norm_layer=norm_layer, **norm_kwargs)
 
 
-class BottleneckSelfKAGNtention3D(SelfKANtentionND):
+class BottleNeckSelfKAGNtention3D(SelfKANtentionND):
     def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
                  padding=0, stride=1, dilation=1, dropout: float = 0.0,
                  norm_layer=nn.BatchNorm3d, **norm_kwargs):
-        super(BottleneckSelfKAGNtention3D, self).__init__(input_dim, BottleNeckKAGNConv3DLayer,
+        super(BottleNeckSelfKAGNtention3D, self).__init__(input_dim, BottleNeckKAGNConv3DLayer,
                                                           inner_projection=inner_projection,
                                                           kernel_size=kernel_size, degree=degree, groups=groups,
                                                           padding=padding,
                                                           stride=stride, dilation=dilation, dropout=dropout,
                                                           norm_layer=norm_layer, **norm_kwargs)
+
+
+class SelfReLUKANtention1D(SelfKANtentionND):
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
+                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
+        super(SelfReLUKANtention1D, self).__init__(input_dim, ReLUKANConv1DLayer, inner_projection=inner_projection,
+                                                   kernel_size=kernel_size, g=g, k=k, train_ab=train_ab, groups=groups,
+                                                   padding=padding,
+                                                   stride=stride, dilation=dilation, dropout=dropout,
+                                                   norm_layer=norm_layer, **norm_kwargs)
+
+
+class SelfReLUKANtention2D(SelfKANtentionND):
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
+                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
+        super(SelfReLUKANtention2D, self).__init__(input_dim, ReLUKANConv2DLayer, inner_projection=inner_projection,
+                                                   kernel_size=kernel_size, g=g, k=k, train_ab=train_ab, groups=groups,
+                                                   padding=padding,
+                                                   stride=stride, dilation=dilation, dropout=dropout,
+                                                   norm_layer=norm_layer, **norm_kwargs)
+
+
+class SelfReLUKANtention3D(SelfKANtentionND):
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
+                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
+        super(SelfReLUKANtention3D, self).__init__(input_dim, ReLUKANConv3DLayer, inner_projection=inner_projection,
+                                                   kernel_size=kernel_size, g=g, k=k, train_ab=train_ab, groups=groups,
+                                                   padding=padding,
+                                                   stride=stride, dilation=dilation, dropout=dropout,
+                                                   norm_layer=norm_layer, **norm_kwargs)
+
+
+class BottleNeckSelfReLUKANtention1D(SelfKANtentionND):
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
+                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
+        super(BottleNeckSelfReLUKANtention1D, self).__init__(input_dim, BottleNeckReLUKANConv1DLayer,
+                                                             inner_projection=inner_projection,
+                                                             kernel_size=kernel_size, g=g, k=k, train_ab=train_ab,
+                                                             groups=groups,
+                                                             padding=padding,
+                                                             stride=stride, dilation=dilation, dropout=dropout,
+                                                             norm_layer=norm_layer, **norm_kwargs)
+
+
+class BottleNeckSelfReLUKANtention2D(SelfKANtentionND):
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
+                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
+        super(BottleNeckSelfReLUKANtention2D, self).__init__(input_dim, BottleNeckReLUKANConv2DLayer,
+                                                             inner_projection=inner_projection,
+                                                             kernel_size=kernel_size, g=g, k=k, train_ab=train_ab,
+                                                             groups=groups,
+                                                             padding=padding,
+                                                             stride=stride, dilation=dilation, dropout=dropout,
+                                                             norm_layer=norm_layer, **norm_kwargs)
+
+
+class BottleNeckSelfReLUKANtention3D(SelfKANtentionND):
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
+                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
+        super(BottleNeckSelfReLUKANtention3D, self).__init__(input_dim, BottleNeckReLUKANConv2DLayer,
+                                                             inner_projection=inner_projection,
+                                                             kernel_size=kernel_size, g=g, k=k, train_ab=train_ab,
+                                                             groups=groups,
+                                                             padding=padding,
+                                                             stride=stride, dilation=dilation, dropout=dropout,
+                                                             norm_layer=norm_layer, **norm_kwargs)

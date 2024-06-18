@@ -4,9 +4,12 @@ import pytest
 import torch
 import torch.nn as nn
 
+from kan_convs import BottleNeckReLUKANConv1DLayer, BottleNeckReLUKANConv2DLayer, BottleNeckReLUKANConv3DLayer
 from kan_convs import FastKANConv1DLayer, FastKANConv2DLayer, FastKANConv3DLayer
+from kan_convs import KABNConv1DLayer, KABNConv2DLayer, KABNConv3DLayer
 from kan_convs import KACNConv1DLayer, KACNConv2DLayer, KACNConv3DLayer
 from kan_convs import KAGNConv1DLayer, KAGNConv2DLayer, KAGNConv3DLayer
+from kan_convs import KAJNConv1DLayer, KAJNConv2DLayer, KAJNConv3DLayer
 from kan_convs import KALNConv1DLayer, KALNConv2DLayer, KALNConv3DLayer
 from kan_convs import KANConv1DLayer, KANConv2DLayer, KANConv3DLayer
 from kan_convs import MoEFastKANConv1DLayer, MoEFastKANConv2DLayer, MoEFastKANConv3DLayer
@@ -15,9 +18,8 @@ from kan_convs import MoEKAGNConv1DLayer, MoEKAGNConv2DLayer, MoEKAGNConv3DLayer
 from kan_convs import MoEKALNConv1DLayer, MoEKALNConv2DLayer, MoEKALNConv3DLayer
 from kan_convs import MoEKANConv1DLayer, MoEKANConv2DLayer, MoEKANConv3DLayer
 from kan_convs import MoEWavKANConv1DLayer, MoEWavKANConv2DLayer, MoEWavKANConv3DLayer
+from kan_convs import ReLUKANConv1DLayer, ReLUKANConv2DLayer, ReLUKANConv3DLayer
 from kan_convs import WavKANConv1DLayer, WavKANConv2DLayer, WavKANConv3DLayer
-from kan_convs import KAJNConv1DLayer, KAJNConv2DLayer, KAJNConv3DLayer
-from kan_convs import KABNConv1DLayer, KABNConv2DLayer, KABNConv3DLayer
 
 
 @pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
@@ -475,9 +477,111 @@ def test_moewavkan_conv_3d(dropout, groups, noisy_gating):
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim, spatial_dim))
     conv = MoEWavKANConv3DLayer(input_dim, output_dim, kernel_size=kernel_size, groups=groups, padding=padding,
-                                stride=1, dilation=1,  wavelet_type='mexican_hat',
+                                stride=1, dilation=1, wavelet_type='mexican_hat',
                                 dropout=dropout, num_experts=8, noisy_gating=noisy_gating, k=2)
     out, loss = conv(input_tensor, True)
     assert out.shape == (bs, output_dim, spatial_dim, spatial_dim, spatial_dim)
     out, loss = conv(input_tensor, False)
+    assert out.shape == (bs, output_dim, spatial_dim, spatial_dim, spatial_dim)
+
+
+@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
+def test_relukan_conv_1d(dropout, groups):
+    bs = 6
+    spatial_dim = 32
+    input_dim = 4
+    output_dim = 16
+    kernel_size = 3
+    padding = 1
+
+    input_tensor = torch.rand((bs, input_dim, spatial_dim))
+    conv = ReLUKANConv1DLayer(input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True,
+                              groups=groups, padding=padding,
+                              stride=1, dilation=1, dropout=dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim, spatial_dim)
+
+
+@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
+def test_relukan_conv_2d(dropout, groups):
+    bs = 6
+    spatial_dim = 32
+    input_dim = 4
+    output_dim = 16
+    kernel_size = 3
+    padding = 1
+
+    input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim))
+    conv = ReLUKANConv2DLayer(input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True,
+                              groups=groups, padding=padding,
+                              stride=1, dilation=1, dropout=dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim, spatial_dim, spatial_dim)
+
+
+@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
+def test_relukan_conv_3d(dropout, groups):
+    bs = 6
+    spatial_dim = 32
+    input_dim = 4
+    output_dim = 16
+    kernel_size = 3
+    padding = 1
+
+    input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim, spatial_dim))
+    conv = ReLUKANConv3DLayer(input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True,
+                              groups=groups, padding=padding,
+                              stride=1, dilation=1, dropout=dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim, spatial_dim, spatial_dim, spatial_dim)
+
+
+@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
+def test_bottleneck_relukan_conv_1d(dropout, groups):
+    bs = 6
+    spatial_dim = 32
+    input_dim = 4
+    output_dim = 16
+    kernel_size = 3
+    padding = 1
+
+    input_tensor = torch.rand((bs, input_dim, spatial_dim))
+    conv = BottleNeckReLUKANConv1DLayer(input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True,
+                                        groups=groups, padding=padding,
+                                        stride=1, dilation=1, dropout=dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim, spatial_dim)
+
+
+@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
+def test_bottleneck_relukan_conv_2d(dropout, groups):
+    bs = 6
+    spatial_dim = 32
+    input_dim = 4
+    output_dim = 16
+    kernel_size = 3
+    padding = 1
+
+    input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim))
+    conv = BottleNeckReLUKANConv2DLayer(input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True,
+                                        groups=groups, padding=padding,
+                                        stride=1, dilation=1, dropout=dropout)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim, spatial_dim, spatial_dim)
+
+
+@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5], [1, 4]))
+def test_bottleneck_relukan_conv_3d(dropout, groups):
+    bs = 6
+    spatial_dim = 32
+    input_dim = 4
+    output_dim = 16
+    kernel_size = 3
+    padding = 1
+
+    input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim, spatial_dim))
+    conv = BottleNeckReLUKANConv3DLayer(input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True,
+                                        groups=groups, padding=padding,
+                                        stride=1, dilation=1, dropout=dropout)
+    out = conv(input_tensor)
     assert out.shape == (bs, output_dim, spatial_dim, spatial_dim, spatial_dim)

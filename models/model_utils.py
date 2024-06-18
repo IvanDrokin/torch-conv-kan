@@ -5,7 +5,7 @@ import torch.nn as nn
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
     WavKANConv2DLayer
 from kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer, BottleNeckKAGNConv2DLayer
-from kan_convs import SelfKAGNtention2D, BottleneckSelfKAGNtention2D
+from kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
 from utils import L1
 
 
@@ -163,7 +163,7 @@ def self_bottleneck_kagn_conv3x3(in_planes: int, inner_projection: int = None, d
                                  dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
                                  dim_reduction: float = 8, **norm_kwargs) -> SelfKAGNtention2D:
     """3x3 convolution with padding"""
-    conv = BottleneckSelfKAGNtention2D(
+    conv = BottleNeckSelfKAGNtention2D(
         in_planes,
         inner_projection=inner_projection,
         degree=degree,

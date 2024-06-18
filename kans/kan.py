@@ -17,11 +17,12 @@
 # and https://github.com/SynodicMonth/ChebyKAN/blob/main/ChebyKANLayer.py
 # and https://github.com/Khochawongwat/GRAMKAN/blob/main/model.py
 # and https://github.com/zavareh1/Wav-KAN
+# and https://github.com/quiqi/relu_kan/issues/2
 from typing import List
 
 import torch.nn as nn
 from utils import L1
-from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer, BernsteinKANLayer
+from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer, BernsteinKANLayer, ReLUKANLayer
 
 
 class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
@@ -299,6 +300,36 @@ class WavKAN(nn.Module):
         return x
 
 
+class ReLUKAN(nn.Module):
+    def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, g: int = 1, k: int = 1,
+                 train_ab: bool = True,
+                 first_dropout: bool = True, **kwargs):
+        super(ReLUKAN, self).__init__()  # Initialize the parent nn.Module class
+
+        # layers_hidden: A list of integers specifying the number of neurons in each layer
+        self.layers_hidden = layers_hidden
+        # list of layers
+        self.layers = nn.ModuleList([])
+        if dropout > 0 and first_dropout:
+            self.layers.append(nn.Dropout(p=dropout))
+        self.num_layers = len(layers_hidden[:-1])
+
+        for i, (in_features, out_features) in enumerate(zip(layers_hidden[:-1], layers_hidden[1:])):
+            # Base weight for linear transformation in each layer
+            layer = ReLUKANLayer(in_features, g, k, out_features, train_ab=train_ab)
+            if l1_decay > 0 and i != self.num_layers - 1:
+                layer = L1(layer, l1_decay)
+            self.layers.append(layer)
+
+            if dropout > 0 and i != self.num_layers - 1:
+                self.layers.append(nn.Dropout(p=dropout))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 def mlp_kan(layers_hidden, dropout: float = 0.0, grid_size: int = 5, spline_order: int = 3,
             base_activation: nn.Module = nn.GELU,
             grid_range: List = [-1, 1], l1_decay: float = 0.0) -> KAN:
@@ -335,6 +366,11 @@ def mlp_kagn(layers_hidden, dropout: float = 0.0, degree: int = 3,
              base_activation: nn.Module = nn.GELU, l1_decay: float = 0.0) -> KAGN:
     return KAGN(layers_hidden, dropout=dropout, base_activation=base_activation,
                 degree=degree, l1_decay=l1_decay)
+
+
+def mlp_relukan(layers_hidden, dropout: float = 0.0, a: int = 1, b: int = 1, train_ab: bool = True,
+                l1_decay: float = 0.0) -> ReLUKAN:
+    return ReLUKAN(layers_hidden, dropout=dropout, a=a, b=b, train_ab=train_ab, l1_decay=l1_decay)
 
 
 def mlp_wav_kan(layers_hidden, dropout: float = 0.0,

@@ -29,6 +29,7 @@ This project introduces and demonstrates the training, validation, and quantizat
   
 - ✅ [2024/06/15] Introducing Bottleneck KAN Convs (with Gram polynomials as basis functions for now). Added LBFGS optimizer support (it's not well-tested, please rise an issue if you face any problem with it). Regularization benchmarks on CIFAR 100 are published. Hyperparameters tuning with **Ray Tune** are released.
 
+- ✅ [2024/06/03] ReLU KAN Convs are available now. 
 
 ### TODO list and next steps
 
@@ -104,17 +105,21 @@ In this repository, implementation of the following layers presented:
 
 - We introduce the `KABNConv1DLayer`, `KABNConv2DLayer`, `KABNConv3DLayer` classes represents a convolutional layers based on Bernstein Kolmogorov Arnold Network.
 
+- The `KABNConv1DLayer`, `KABNConv2DLayer`, `KABNConv3DLayer` classes represents a convolutional layers based on ReLU KAN, introduced in [8].
+
 ### Introducing Bottleneck Convolutional KAN layers
 
 As we previously discussed, a phi function consists of two blocks: residual activation functions (left part of diagrams below) and learnable non-linearity (splines, polynomials, wavelet, etc; right part of diagrams below). 
 
 ![ConvKANvsBNConvKAN](assets/math/conv_kan_vs_bottleneck_conv_kan.png)
 
-The main problem is in tight part: the more channels we have in input data, the more learnable parameters we introduce in the model. So, as a Bottleneck layers in ResNets, we could do a simple trick: we can apply 1x1 squeezing convolution to the input data, perform splines in this space, and then apply 1x1 unsqueezing convolution.
+The main problem is in the right part: the more channels we have in input data, the more learnable parameters we introduce in the model. So, as a Bottleneck layers in ResNets, we could do a simple trick: we can apply 1x1 squeezing convolution to the input data, perform splines in this space, and then apply 1x1 unsqueezing convolution.
 
 Let's assume, we have input **x** with 512 channels, and we want to perform ConvKAN with 512 filters. First, conv 1x1 projects **x** to **y** with 128 channel for example. Now we apply learned non-linearity to y, and last conv 1x1 transforms **y** to **t** with 512 channels (again). Now we can sum **t** with residual activations.
 
 In this repository, implementation of the following bottleneck layers presented:
+
+- The `BottleNeckKAGNConv1DLayer`, `BottleNeckKAGNConv2DLayer`, `BottleNeckKAGNConv3DLayer` classes represents a bottleneck convolutional layers based on Kolmogorov Arnold Network with Gram polynomials instead of B-splines.
 
 - The `BottleNeckKAGNConv1DLayer`, `BottleNeckKAGNConv2DLayer`, `BottleNeckKAGNConv3DLayer` classes represents a bottleneck convolutional layers based on Kolmogorov Arnold Network with Gram polynomials instead of B-splines.
 
@@ -317,7 +322,7 @@ Contributions are welcome. Please raise issues as necessary.
 <a id="item-eight"></a>
 ## Acknowledgements
 
-This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN), [WavKAN](https://github.com/zavareh1/Wav-KAN) and [JacobiKAN](https://github.com/SpaceLearner/JacobiKAN). And we would like to say thanks for their open research and exploration.
+This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN](https://github.com/ZiyaoLi/fast-kan), [ChebyKAN](https://github.com/SynodicMonth/ChebyKAN), [GRAMKAN](https://github.com/Khochawongwat/GRAMKAN), [WavKAN](https://github.com/zavareh1/Wav-KAN), [JacobiKAN](https://github.com/SpaceLearner/JacobiKAN), and [ReLU KAN](https://github.com/quiqi/relu_kan). And we would like to say thanks for their open research and exploration.
 
 <a id="item-nine"></a>
 ## References
@@ -329,8 +334,9 @@ This repository based on [TorchKAN](https://github.com/1ssb/torchkan/), [FastKAN
 - [5] https://github.com/Khochawongwat/GRAMKAN
 - [6] https://github.com/zavareh1/Wav-KAN  
 - [7] https://github.com/SpaceLearner/JacobiKAN
-- [8] https://github.com/KindXiaoming/pykan
-- [9] https://github.com/Blealtan/efficient-kan
+- [8] https://github.com/quiqi/relu_kan
+- [9] https://github.com/KindXiaoming/pykan
+- [10] https://github.com/Blealtan/efficient-kan
 
 ## Star History
 

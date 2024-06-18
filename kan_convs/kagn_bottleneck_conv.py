@@ -119,6 +119,9 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
 
     def forward_kag(self, x, group_index):
 
+        if self.dropout is not None:
+            x = self.dropout(x)
+
         # Apply base activation to input and then linear transform with base weights
         basis = self.base_conv[group_index](self.base_activation(x))
 
@@ -127,9 +130,6 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
         x = torch.tanh(x).contiguous()
 
         grams_basis = self.base_activation(self.gram_poly(x, self.degree))
-
-        if self.dropout is not None:
-            grams_basis = self.dropout(grams_basis)
 
         y = self.conv_w_fun(grams_basis, self.poly_weights[group_index],
                             stride=self.stride, dilation=self.dilation,

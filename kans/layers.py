@@ -511,3 +511,43 @@ class BernsteinKANLayer(nn.Module):
 
         y = self.act(self.norm(y + basis))
         return y
+
+
+class ReLUKANLayer(nn.Module):
+
+    def __init__(self,
+                 input_size: int,
+                 g: int,
+                 k: int,
+                 output_size: int,
+                 train_ab: bool = True):
+        super().__init__()
+        self.g, self.k, self.r = g, k, 4 * g * g / ((k + 1) * (k + 1))
+        self.input_size, self.output_size = input_size, output_size
+        # modification here
+        phase_low = torch.arange(-k, g) / g
+        phase_high = phase_low + (k + 1) / g
+        # modification here
+        self.phase_low = nn.Parameter(phase_low[None, :].expand(input_size, -1),
+                                      requires_grad=train_ab)
+        # modification here, and: `phase_height` to `phase_high`
+        self.phase_high = nn.Parameter(phase_high[None, :].expand(input_size, -1),
+                                         requires_grad=train_ab)
+        self.equal_size_conv = nn.Conv2d(1, output_size, (g + k, input_size))
+
+    def forward(self, x):
+        x = x[..., None]
+        x1 = torch.relu(x - self.phase_low)
+        x2 = torch.relu(self.phase_high - x)
+        x = x1 * x2 * self.r
+        x = x * x
+        x = x.reshape((len(x), 1, self.g + self.k, self.input_size))
+        x = self.equal_size_conv(x)
+        x = x.reshape((len(x), self.output_size))
+        return x
+
+
+if __name__ == '__main__':
+    layer = ReLUKANLayer(4, 5, 3, 8)
+    t = torch.randn((16, 4))
+    out = layer(t)
