@@ -209,8 +209,46 @@ Based on the conducted experiments, the following conclusions can be drawn:
  - L1/L2 activation penalties, as well as L1 weight penalty, slightly improve the situation, but not significantly.
  - In a wider model, the impact of regularization is greater.
 
+## Scaling
+Let’s talk about scaling. In classical convolutional networks, we have two major options for scaling up models: we can go deeper and stack more layers, or we can go wider and expand the number of convolutional filters. There are other ways to scale up models, like leveraging a mixture of experts, but we wouldn’t focus on them today.
+
+KAN Convs with Gram polynomials as basis functions provide us with another possibility for scaling: instead of inflating channel numbers or adding new layers, we could increase the degree of polynomials.
+
+So, we are going to train a set of networks with different widths, depths, and degrees. 
+
+During the experiments, we used the same augmentations as in the previous section, NoiseInjection in Full positions for regularization with p = 0.05 and linear dropout with p = 0.05.
+
+|Train Accuracy|Val. Accuracy| model|degree|width_scale|Parameters|
+|--------------|-------------|------|------|-----------|----------|
+|     58.15    |    56.35    |  16  |   7  |     2     |  382.25M |
+|     44.28    |    50.07    |  16  |   7  |     1     |  95.59M  |
+|     57.35    |    55.72    |  16  |   5  |     2     |  297.33M |
+|     43.27    |    50.94    |  16  |   5  |     1     |  74.36M  |
+|     56.34    |    58.09    |  16  |   3  |     2     |  212.41M |
+|     42.91    |    51.48    |  16  |   3  |     1     |  53.13M  |
+|     80.70    |    65.42    |  12  |   7  |     2     |  438.90M |
+|     74.71    |    63.81    |  12  |   7  |     1     |  109.76M |
+|     84.31    |    67.31    |  12  |   5  |     2     |  341.39M |
+|     75.96    |    64.47    |  12  |   5  |     1     |  85.38M  |
+|     82.06    |  **69.70**  |  12  |   3  |     2     |  243.88M |
+|     73.14    |    66.65    |  12  |   3  |     1     |  61.00M  |
+|     84.89    |    66.64    |   8  |   7  |     2     |  162.85M |
+|     73.53    |    62.93    |   8  |   7  |     1     |  40.74M  |
+|     83.96    |    67.94    |   8  |   5  |     2     |  126.69M |
+|     70.36    |    64.01    |   8  |   5  |     1     |  31.70M  |
+|     81.41    |    69.67    |   8  |   3  |     2     |  90.52M  |
+|     65.24    |    65.30    |   8  |   3  |     1     |  22.66M  |
+
+![scaling](../assets/reg/scaling.png)
+
+Interesting conclusions:
+
+ - Seems that scaling width works better than scaling depth. 
+ - There are no benefits of scaling degree
+ - Number of trainable params grows really fast in any setup (depth, width or degree)
+
+It could be linked with small dataset size and maybe on larger datasets we will see another results. Anyway, we need to find a workaround for that.
 
 ## Next steps
 
- - Scaling study: how depth, width and degree impack model performance
  - Hyper parameters tuning
