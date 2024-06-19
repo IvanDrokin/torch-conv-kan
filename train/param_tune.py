@@ -448,6 +448,5 @@ def tune_params(search_config, model, config, data_function, loss_func, num_samp
 
     best_trial = result.get_best_trial(config.raytune.metric, config.raytune.mode, "last")
     print(f"Best trial config: {best_trial.config}")
-    print(f"Best trial final validation loss: {best_trial.last_result['loss']}")
-    print(f"Best trial final validation accuracy: {best_trial.last_result['accuracy']}")
+    print(f"Best trial final validation accuracy: {best_trial.last_result[config.raytune.metric]}")
     return best_trial.config
