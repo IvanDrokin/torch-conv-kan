@@ -13,6 +13,13 @@ def get_metrics(targets, predictions, metric_config):
                 **f1(targets, classes),
                 **auc(targets, predictions)}
 
+    if metric_config.report_type == 'classification_minimum':
+
+        classes = np.argmax(predictions, axis=-1)
+
+        return {**top1_accuracy(targets, classes),
+                **top5_accuracy(targets, predictions)}
+
     if metric_config.report_type == 'segmentation':
         return dice(targets, predictions)
 
