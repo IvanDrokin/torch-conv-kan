@@ -216,7 +216,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                                KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
             module.register_forward_hook(output_hook)
 
-    if cfg.metrics.report_type == 'classification':
+    if cfg.metrics.report_type == 'classification' or cfg.metrics.report_type == 'classification_minimum':
         metric_acc = partial(accuracy, task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
         metric_acc_top5 = partial(accuracy, task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
         metric_acc, metric_acc_top5 = accelerator.prepare(metric_acc, metric_acc_top5)
