@@ -300,7 +300,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                         if moe_loss is not None:
                             loss += moe_loss
 
-                    if cfg.metrics.report_type == 'classification':
+                    if cfg.metrics.report_type == 'classification' or cfg.metrics.report_type == 'classification_minimum':
                         if isinstance(output, tuple):
                             acc = metric_acc(output[-1], labels)
                             acc_t5 = metric_acc_top5(output[-1], labels)
@@ -366,7 +366,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     if moe_loss is not None:
                         loss += moe_loss
 
-                if cfg.metrics.report_type == 'classification':
+                if cfg.metrics.report_type == 'classification' or cfg.metrics.report_type == 'classification_minimum':
                     if isinstance(output, tuple):
                         acc = metric_acc(output[-1], labels)
                         acc_t5 = metric_acc_top5(output[-1], labels)
