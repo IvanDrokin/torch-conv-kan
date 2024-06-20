@@ -158,6 +158,18 @@ def bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, gr
     return conv
 
 
+def bottleneck_kagn_conv1x1(in_planes: int, out_planes: int, degree: int = 3, stride: int = 1,
+                            dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                            l1_decay: float = 0.0, **norm_kwargs) -> KAGNConv2DLayer:
+    """1x1 convolution"""
+    conv = BottleNeckKAGNConv2DLayer(in_planes, out_planes, degree=degree,
+                                     kernel_size=1,
+                                     stride=stride, dropout=dropout, norm_layer=norm_layer, **norm_kwargs)
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
+
+
 def self_bottleneck_kagn_conv3x3(in_planes: int, inner_projection: int = None, degree: int = 3, groups: int = 1,
                                  stride: int = 1,
                                  dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,

@@ -420,8 +420,11 @@ class MoEBottleNeckKAGNConvND(nn.Module):
         # is each value currently in the top k.
         normal = Normal(torch.tensor([0.0], device=clean_values.device),
                         torch.tensor([1.0], device=clean_values.device))
-        prob_if_in = normal.cdf((clean_values - threshold_if_in) / (noise_stddev + 1e-08))
-        prob_if_out = normal.cdf((clean_values - threshold_if_out) / (noise_stddev + 1e-08))
+        # with torch.autocast(dtype=torch.float32, device_type=noise_stddev.device):
+        tin = (clean_values.to(dtype=torch.float32) - threshold_if_in.to(dtype=torch.float32)) / (noise_stddev.to(dtype=torch.float32) + 1e-8)
+        tout = (clean_values.to(dtype=torch.float32) - threshold_if_out.to(dtype=torch.float32)) / (noise_stddev.to(dtype=torch.float32) + 1e-8)
+        prob_if_in = normal.cdf(tin)
+        prob_if_out = normal.cdf(tout)
         prob = torch.where(is_in, prob_if_in, prob_if_out)
         return prob
 

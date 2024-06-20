@@ -29,7 +29,9 @@ This project introduces and demonstrates the training, validation, and quantizat
   
 - ✅ [2024/06/15] Introducing Bottleneck KAN Convs (with Gram polynomials as basis functions for now). Added LBFGS optimizer support (it's not well-tested, please rise an issue if you face any problem with it). Regularization benchmarks on CIFAR 100 are published. Hyperparameters tuning with **Ray Tune** are released.
 
-- ✅ [2024/06/03] ReLU KAN Convs are available now. 
+- ✅ [2024/06/18] ReLU KAN Convs are available now. 
+  
+- ✅ [2024/06/20] :fire::fire::fire:**New pretrained checkpoint on Imagenet1k are released**:fire::fire::fire: VGG11 style with Bottleneck Gram Convolutions. The model achieves 68.5% Top1 accuracy on Imagenet1k validation set with only 7.25M parameters.
 
 ### TODO list and next steps
 
@@ -154,6 +156,7 @@ Pretrained on Imagenet1k ckeckpoints:
 |:--------------:|:--------------:|:--------------:|:---------:|:---------:|
 | [VGG KAGN 11v2](https://huggingface.co/brivangl/vgg_kagn11_v2)|      59.1      |      82.29     |   99.43   |   99.43   |
 | [VGG KAGN 11v4](https://huggingface.co/brivangl/vgg_kagn11_v4)|     61.17     |      83.26     |   99.42   |   99.43   |
+| [VGG KAGN BN 11v4](https://huggingface.co/brivangl/vgg_kagn_bn11_v4)|    68.5      |      88.46     |   99.61   |   99.61  |
 
 More checkpoints are coming, stay tuned. Available for me computational resources are pretty limited, so it takes some time to train and eval all models.
 

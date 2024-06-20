@@ -4,10 +4,11 @@ from typing import Callable, List, Optional, Type, Union
 import torch.nn as nn
 from torch import Tensor, flatten
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
+from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, BottleNeckKAGNConv2DLayer
 from kans import KAN, KALN, KACN, KAGN, FastKAN
-from .model_utils import kan_conv1x1, kagn_conv1x1, kacn_conv1x1, kaln_conv1x1, fast_kan_conv1x1
-from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3, moe_kaln_conv3x3
+from .model_utils import kan_conv1x1, kagn_conv1x1, kacn_conv1x1, kaln_conv1x1, fast_kan_conv1x1, bottleneck_kagn_conv1x1
+from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3, moe_kaln_conv3x3, bottleneck_kagn_conv3x3
+
 
 
 class BasicBlockTemplate(nn.Module):
@@ -163,6 +164,37 @@ class KAGNBasicBlock(BasicBlockTemplate):
                                 norm_layer=norm_layer, **norm_kwargs)
 
         super(KAGNBasicBlock, self).__init__(conv1x1x1_fun,
+                                             conv3x3x3_fun,
+                                             inplanes=inplanes,
+                                             planes=planes,
+                                             stride=stride,
+                                             downsample=downsample,
+                                             groups=groups,
+                                             base_width=base_width,
+                                             dilation=dilation)
+
+
+
+class BottleneckKAGNBasicBlock(BasicBlockTemplate):
+    def __init__(self,
+                 inplanes: int,
+                 planes: int,
+                 degree: int = 3,
+                 stride: int = 1,
+                 downsample: Optional[nn.Module] = None,
+                 groups: int = 1,
+                 base_width: int = 64,
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0,
+                 norm_layer: nn.Module = nn.InstanceNorm2d,
+                 **norm_kwargs):
+        conv1x1x1_fun = partial(bottleneck_kagn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
+        conv3x3x3_fun = partial(bottleneck_kagn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
+
+        super(BottleneckKAGNBasicBlock, self).__init__(conv1x1x1_fun,
                                              conv3x3x3_fun,
                                              inplanes=inplanes,
                                              planes=planes,
@@ -373,6 +405,36 @@ class KAGNBottleneck(BottleneckTemplate):
                                              dilation=dilation)
 
 
+class BottleneckKAGNBottleneck(BottleneckTemplate):
+    def __init__(self,
+                 inplanes: int,
+                 planes: int,
+                 degree: int = 3,
+                 stride: int = 1,
+                 downsample: Optional[nn.Module] = None,
+                 groups: int = 1,
+                 base_width: int = 64,
+                 dilation: int = 1,
+                 dropout: float = 0.0,
+                 l1_decay: float = 0.0,
+                 norm_layer: nn.Module = nn.InstanceNorm2d,
+                 **norm_kwargs):
+        conv1x1_fun = partial(bottleneck_kagn_conv1x1, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
+        conv3x3_fun = partial(bottleneck_kagn_conv3x3, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                                norm_layer=norm_layer, **norm_kwargs)
+
+        super(BottleneckKAGNBottleneck, self).__init__(conv1x1_fun,
+                                             conv3x3_fun,
+                                             inplanes=inplanes,
+                                             planes=planes,
+                                             stride=stride,
+                                             downsample=downsample,
+                                             groups=groups,
+                                             base_width=base_width,
+                                             dilation=dilation)
+
+
 class MoEKALNBottleneck(BottleneckTemplate):
     def __init__(self,
                  inplanes: int,
@@ -497,7 +559,8 @@ class ResKANet(nn.Module):
     def __init__(
             self,
             block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KAGNBasicBlock,
-                              KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck]],
+                              KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck,
+                              BottleneckKAGNBottleneck]],
             layers: List[int],
             input_channels: int = 3,
             use_first_maxpool: bool = True,
@@ -551,26 +614,31 @@ class ResKANet(nn.Module):
         if block in (KANBasicBlock, KANBottleneck):
             self.conv1 = KANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size, stride=fcnv_stride,
                                         padding=fcnv_padding, **kan_kwargs_clean)
-            self.fc = KAN(fc_layers, **kan_kwargs_fc)
+            # self.fc = KAN(fc_layers, **kan_kwargs_fc)
 
         elif block in (FastKANBasicBlock, FastKANBottleneck):
             self.conv1 = FastKANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                             stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
-            self.fc = FastKAN(fc_layers, **kan_kwargs_fc)
+            # self.fc = FastKAN(fc_layers, **kan_kwargs_fc)
 
         elif block in (KALNBasicBlock, KALNBottleneck):
             self.conv1 = KALNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
-            self.fc = KALN(fc_layers, **kan_kwargs_fc)
+            # self.fc = KALN(fc_layers, **kan_kwargs_fc)
         elif block in (KAGNBasicBlock, KAGNBottleneck):
             self.conv1 = KAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding,
                                          norm_layer=norm_layer, **kan_kwargs_clean)
-            self.fc = KAGN(fc_layers, **kan_kwargs_fc)
+            # self.fc = KAGN(fc_layers, **kan_kwargs_fc)
+        elif block in (BottleneckKAGNBottleneck, BottleneckKAGNBasicBlock):
+            self.conv1 = BottleNeckKAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
+                                         stride=fcnv_stride, padding=fcnv_padding,
+                                         norm_layer=norm_layer, **kan_kwargs_clean)
+            # self.fc = KAGN(fc_layers, **kan_kwargs_fc)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
-            self.fc = KACN(fc_layers, **kan_kwargs_fc)
+            # self.fc = KACN(fc_layers, **kan_kwargs_fc)
         else:
             raise TypeError(f"Block {type(block)} is not supported")
         self.maxpool = None
@@ -595,7 +663,7 @@ class ResKANet(nn.Module):
 
     def _make_layer(
             self,
-            block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock,
+            block: Type[Union[KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, BottleneckKAGNBasicBlock, BottleneckKAGNBottleneck,
                               KANBottleneck, FastKANBottleneck, KALNBottleneck, KACNBottleneck]],
             planes: int,
             blocks: int,
@@ -618,8 +686,12 @@ class ResKANet(nn.Module):
                 conv1x1 = partial(kaln_conv1x1, **kan_kwargs)
             elif block in (KAGNBasicBlock, KAGNBottleneck):
                 conv1x1 = partial(kagn_conv1x1, **kan_kwargs)
+            elif block in (KAGNBasicBlock, KAGNBottleneck):
+                conv1x1 = partial(kagn_conv1x1, **kan_kwargs)
             elif block in (KACNBasicBlock, KACNBottleneck):
                 conv1x1 = partial(kacn_conv1x1, **kan_kwargs)
+            elif block in (BottleneckKAGNBasicBlock, BottleneckKAGNBottleneck):
+                conv1x1 = partial(bottleneck_kagn_conv1x1, **kan_kwargs)
             else:
                 raise TypeError(f"Block {type(block)} is not supported")
 
@@ -1006,6 +1078,26 @@ def reskagnet50(input_channels, num_classes, groups: int = 1, degree: int = 3, w
                 dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
                 hidden_layer_dim=None, affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
     return ResKANet(KAGNBottleneck, [3, 4, 6, 3],
+                    input_channels=input_channels,
+                    use_first_maxpool=True,
+                    fcnv_kernel_size=7, fcnv_stride=2, fcnv_padding=3,
+                    num_classes=num_classes,
+                    groups=groups,
+                    width_per_group=64,
+                    degree=degree,
+                    width_scale=width_scale,
+                    dropout=dropout,
+                    dropout_linear=dropout_linear,
+                    l1_decay=l1_decay,
+                    hidden_layer_dim=hidden_layer_dim,
+                    norm_layer=norm_layer,
+                    affine=affine)
+
+
+def reskagnet_bn50(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                dropout: float = 0.15, dropout_linear: float = 0.25, l1_decay: float = 0.0,
+                hidden_layer_dim=None, affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
+    return ResKANet(BottleneckKAGNBottleneck, [3, 4, 6, 3],
                     input_channels=input_channels,
                     use_first_maxpool=True,
                     fcnv_kernel_size=7, fcnv_stride=2, fcnv_padding=3,
