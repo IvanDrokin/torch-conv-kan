@@ -249,6 +249,65 @@ Interesting conclusions:
 
 It could be linked with small dataset size and maybe on larger datasets we will see another results. Anyway, we need to find a workaround for that.
 
-## Next steps
+## Hyper parameters tuning
 
- - Hyper parameters tuning
+In this experiment, we want to try to find a good set of hyperparameters for 8 layers models. Search space consists of:
+
+- L1 activation penalty
+- L2 activation penalty
+- L1 weight decay
+- Dropout rate before the output layer
+- Dropout rate/Noise Injection, Full placement
+- “Dropout type”: use either Dropout or Noise Injection inside ConvKAGN layers
+- Width scale: parameter that expands the number of channels
+- Degree of Gram polynomials
+- Adam weights decay
+- Learning rate
+- Learning rate power: parameter that controls the learning rate scheduler
+- Label smoothing
+
+In order to find a proper parameter set and reduce the probability of overfitting to the test set, we split the training set of CIFAR100 into new train and new test sets with a proportion of 80/20. After finishing the parameter search, we train the new model on the full CIFAR100 training set and evaluate it on the full test set.
+
+After 50 runs of optimization, the following best parameters have been acquired with an accuracy of 61.85%:
+
+```json
+{
+    'l1_activation_penalty': 1e-07,
+    'l2_activation_penalty': 1e-06,
+    'l1_decay': 0,
+    'dropout_linear': 0.1456351951990277,
+    'dropout_full': 0.08211066335714672,
+    'drop_type': 'noise',
+    'width_scale': 6,
+    'degree': 3,
+    'lr_power': 1.1275350538654738,
+    'adam_weight_decay': 6.579785489783022e-06,
+    'learning_rate': 0.000779538356958937,
+    'label_smoothing': 0.1823706816166831
+}
+```
+And the results of the models on this parameter set.
+
+|Val. Accuracy| Model|Parameters|
+|-------------|------|----------|
+|  **74.87**  |  8   |  203.59M |
+|    72.48    |  12  |  389.39M |
+|    67.28    |  16  |  477.83M |
+
+![training curves, best params](../assets/reg/best_train_val_acc.png)
+
+The model trained on optimal parameters performs much better compared to the default one. We also see that depth increasing negatively affects performance, it could be linked to extreme model size (almost half a billion params) or with extreme depth and vanishing gradients, but we have a lot of workarounds for that case: ResNet-like, DenseNet-like, and many other ways to deal with it. All we need to do is solve the overwhelming parameter number in the models. 
+
+## Conclusions
+
+A good set of training parameters for the 8-layer ConvKAN model that boosts performance on CIFAR100 to an amazing 74.87% accuracy. Interesting fact, Noise Injection works better compared to Dropout for KANs.
+
+But there are several problems:
+
+- The number of parameters in the model is too large and grows too quickly with an increase in the model's width or depth.
+
+- This leads to very long training times and increased resource consumption.
+
+- This is likely related to the model's poor scalability in depth - the probability of overfitting is very high.
+
+- Or maybe it’s better to scale KANs widthwise instead of depthwise. intuitively, KAN convolutional kernels are a set of learnable non-linear functions, and these functions could be pretty complex to handle dataset patterns with fewer layers compared to traditional convolutions. 

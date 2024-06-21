@@ -173,7 +173,7 @@ We introduce UKANets and U2KANets - an U-net like model with KAN convolutions in
 [VGG-like on Imagenet1k](./reports/imagenet1k-vggs.md)
 
 
-[Regularization study](./reports/cifar_100_regularization.md)
+[Regularization, scaling and hyperparameter optimization study](./reports/cifar_100_regularization.md) TL;DR 8 layer SimpleKAGNConv 74.87% accuracy on CIFAR100 with optimal set of params.
 
 <a id="item-four"></a>
 ## Discussion
