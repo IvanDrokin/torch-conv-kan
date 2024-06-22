@@ -1,4 +1,5 @@
 from functools import partial
+from copy import deepcopy
 from typing import Callable, Optional, List, Type, Union
 
 import torch
@@ -40,68 +41,71 @@ class UKANet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
 
+        clean_params = deepcopy(kan_kwargs)
+        clean_params.pop('l1_decay', None)
+
         if block in (KANBasicBlock, KANBottleneck):
             self.conv1 = KANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size, stride=fcnv_stride,
-                                        padding=fcnv_padding, **kan_kwargs)
+                                        padding=fcnv_padding, **clean_params)
 
             self.merge1 = KANConv2DLayer((8 + 16) * width_scale * block.expansion,
                                          8 * block.expansion * block.expansion, kernel_size=3,
-                                         groups=groups, stride=1, padding=1, **kan_kwargs)
+                                         groups=groups, stride=1, padding=1, **clean_params)
             self.merge2 = KANConv2DLayer((32 + 16) * block.expansion * block.expansion,
                                          16 * block.expansion * block.expansion, kernel_size=3,
-                                         groups=groups, stride=1, padding=1, **kan_kwargs)
+                                         groups=groups, stride=1, padding=1, **clean_params)
             self.merge3 = KANConv2DLayer((32 + 64) * block.expansion * block.expansion,
                                          32 * block.expansion * block.expansion, kernel_size=3,
-                                         groups=groups, stride=1, padding=1, **kan_kwargs)
+                                         groups=groups, stride=1, padding=1, **clean_params)
         elif block in (FastKANBasicBlock, FastKANBottleneck):
             self.conv1 = FastKANConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                            stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                            stride=fcnv_stride, padding=fcnv_padding, **clean_params)
 
             self.merge1 = FastKANConv2DLayer((8 + 16) * block.expansion * block.expansion,
                                              8 * block.expansion * block.expansion, kernel_size=3,
-                                             groups=groups, stride=1, padding=1, **kan_kwargs)
+                                             groups=groups, stride=1, padding=1, **clean_params)
             self.merge2 = FastKANConv2DLayer((32 + 16) * block.expansion * block.expansion,
                                              16 * block.expansion * block.expansion, kernel_size=3,
-                                             groups=groups, stride=1, padding=1, **kan_kwargs)
+                                             groups=groups, stride=1, padding=1, **clean_params)
             self.merge3 = FastKANConv2DLayer((32 + 64) * block.expansion * block.expansion,
                                              32 * block.expansion * block.expansion, kernel_size=3,
-                                             groups=groups, stride=1, padding=1, **kan_kwargs)
+                                             groups=groups, stride=1, padding=1, **clean_params)
         elif block in (KALNBasicBlock, KALNBottleneck):
             self.conv1 = KALNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                         stride=fcnv_stride, padding=fcnv_padding, **clean_params)
             self.merge1 = KALNConv2DLayer((8 + 16) * block.expansion * block.expansion,
                                           8 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
             self.merge2 = KALNConv2DLayer((32 + 16) * block.expansion * block.expansion,
                                           16 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
             self.merge3 = KALNConv2DLayer((32 + 64) * block.expansion * block.expansion,
                                           32 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
         elif block in (KAGNBasicBlock, KAGNBottleneck):
             self.conv1 = KAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                         stride=fcnv_stride, padding=fcnv_padding, **clean_params)
             self.merge1 = KAGNConv2DLayer((8 + 16) * block.expansion * block.expansion,
                                           8 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
             self.merge2 = KAGNConv2DLayer((32 + 16) * block.expansion * block.expansion,
                                           16 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
             self.merge3 = KAGNConv2DLayer((32 + 64) * block.expansion * block.expansion,
                                           32 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs)
+                                         stride=fcnv_stride, padding=fcnv_padding, **clean_params)
             self.merge1 = KACNConv2DLayer((8 + 16) * block.expansion * block.expansion,
                                           8 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
             self.merge2 = KACNConv2DLayer((32 + 16) * block.expansion * block.expansion,
                                           16 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
             self.merge3 = KACNConv2DLayer((32 + 64) * block.expansion * block.expansion,
                                           32 * block.expansion * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **kan_kwargs)
+                                          groups=groups, stride=1, padding=1, **clean_params)
         else:
             raise TypeError(f"Block {type(block)} is not supported")
 

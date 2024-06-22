@@ -1,6 +1,12 @@
-# The code is based on the Yeonwoo Sung's implementation:
-# https://github.com/YeonwooSung/Pytorch_mixture-of-experts/blob/main/moe.py
-import numpy as np
+# Sparsely-Gated Mixture-of-Experts Layers.
+# See "Outrageously Large Neural Networks"
+# https://arxiv.org/abs/1701.06538
+#
+# Author: David Rau
+#
+# The code is based on the TensorFlow implementation:
+# https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils/expert_utils.py
+# And taken from https://github.com/davidmrau/mixture-of-experts with modifications
 import torch
 
 
@@ -45,9 +51,9 @@ class SparseDispatcher(object):
         # drop indices
         _, self._expert_index = sorted_experts.split(1, dim=1)
         # get according batch index for each expert
-        self._batch_index = sorted_experts[index_sorted_experts[:, 1], 0]
+        self._batch_index = torch.nonzero(gates)[index_sorted_experts[:, 1], 0]
         # calculate num samples that each expert gets
-        self._part_sizes = list((gates > 0).sum(0).cpu().numpy())
+        self._part_sizes = (gates > 0).sum(0).tolist()
         # expand gates to match with self._batch_index
         gates_exp = gates[self._batch_index.flatten()]
         self._nonzero_gates = torch.gather(gates_exp, 1, self._expert_index)
@@ -83,20 +89,18 @@ class SparseDispatcher(object):
           a `Tensor` with shape `[batch_size, <extra_output_dims>]`.
         """
         # apply exp to expert outputs, so we are not longer in log space
-        stitched = torch.cat(expert_out, 0).exp()
-        conv_dims = tuple(1 for _ in range(conv_dims))
+        stitched = torch.cat(expert_out, 0)
+        _conv_dims = tuple(1 for _ in range(conv_dims))
         if multiply_by_gates:
-            self._nonzero_gates = self._nonzero_gates.view(self._nonzero_gates.shape + conv_dims)
-            stitched = stitched.mul(self._nonzero_gates)
-
+            _nonzero_gates = self._nonzero_gates.view(self._nonzero_gates.shape + _conv_dims)
+            stitched = stitched.mul(_nonzero_gates)
         out_size = (self._gates.size(0),) + expert_out[-1].shape[1:]
         zeros = torch.zeros(out_size, requires_grad=True, device=expert_out[-1].device)
+        # zeros = torch.zeros(self._gates.size(0), expert_out[-1].size(1), *_conv_dims,
+        #                     requires_grad=True, device=stitched.device)
         # combine samples that have been processed by the same k experts
         combined = zeros.index_add(0, self._batch_index, stitched.float())
-        # add eps to all zero values in order to avoid nans when going back to log space
-        combined[combined == 0] = np.finfo(float).eps
-        # back to log space
-        return combined.log()
+        return combined
 
     def expert_to_gates(self):
         """Gate values corresponding to the examples in the per-expert `Tensor`s.

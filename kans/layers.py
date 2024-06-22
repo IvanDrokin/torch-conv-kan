@@ -18,14 +18,15 @@
 # and https://github.com/Khochawongwat/GRAMKAN/blob/main/model.py
 # and https://github.com/zavareh1/Wav-KAN
 # and https://github.com/SpaceLearner/JacobiKAN/blob/main/JacobiKANLayer.py
-from functools import lru_cache
 import math
+from functools import lru_cache
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import einsum
 
-from kan_convs.fast_kan_conv import RadialBasisFunction
+from .utils import RadialBasisFunction
 
 
 class KANLayer(nn.Module):
@@ -61,7 +62,6 @@ class KANLayer(nn.Module):
             grid_size + 2 * spline_order + 1,
             dtype=torch.float32
         ).expand(input_features, -1).contiguous()
-
 
         # Initialize the weights using Kaiming uniform distribution for better initial values.
         nn.init.kaiming_uniform_(self.base_weight, nonlinearity='linear')
@@ -440,9 +440,9 @@ class JacobiKANLayer(nn.Module):
         for i in range(2, self.degree + 1):
             theta_k = (2 * i + self.a + self.b) * (2 * i + self.a + self.b - 1) / (2 * i * (i + self.a + self.b))
             theta_k1 = (2 * i + self.a + self.b - 1) * (self.a * self.a - self.b * self.b) / (
-                        2 * i * (i + self.a + self.b) * (2 * i + self.a + self.b - 2))
+                    2 * i * (i + self.a + self.b) * (2 * i + self.a + self.b - 2))
             theta_k2 = (i + self.a - 1) * (i + self.b - 1) * (2 * i + self.a + self.b) / (
-                        i * (i + self.a + self.b) * (2 * i + self.a + self.b - 2))
+                    i * (i + self.a + self.b) * (2 * i + self.a + self.b - 2))
             jacobi[:, :, i] = (theta_k * x + theta_k1) * jacobi[:, :, i - 1].clone() - theta_k2 * jacobi[:, :,
                                                                                                   i - 2].clone()
         # Compute the Jacobian interpolation
@@ -473,24 +473,10 @@ class BernsteinKANLayer(nn.Module):
         nn.init.normal_(self.bernstein_coeffs, mean=0.0, std=1 / (input_dim * (degree + 1)))
         nn.init.xavier_uniform_(self.base_weights)
 
-    # @staticmethod
-    # def combo(n, k):
-    #     return ((n + 1).lgamma() - (k + 1).lgamma() - ((n - k) + 1).lgamma()).exp()
-    #
-    # @lru_cache(maxsize=128)
-    # def bernstein_poly(self, x, degree):
-    #
-    #     bernsteins = []
-    #     for i in range(0, degree + 1):
-    #         bernstein_poly = self.combo(torch.tensor(degree), self.combo(torch.tensor(i)) * torch.pow(1. - x, degree - i) * torch.pow(x, i)
-    #         bernsteins.append(bernstein_poly)
-    #
-    #     return torch.stack(bernsteins, dim=-1)
-
     @lru_cache(maxsize=128)
     def bernstein_poly(self, x, degree):
 
-        bernsteins = torch.ones(x.shape + (self.degree + 1, ), dtype=x.dtype, device=x.device)
+        bernsteins = torch.ones(x.shape + (self.degree + 1,), dtype=x.dtype, device=x.device)
         for j in range(1, degree + 1):
             for k in range(degree + 1 - j):
                 bernsteins[..., k] = bernsteins[..., k] * (1 - x) + bernsteins[..., k + 1] * x
@@ -532,7 +518,7 @@ class ReLUKANLayer(nn.Module):
                                       requires_grad=train_ab)
         # modification here, and: `phase_height` to `phase_high`
         self.phase_high = nn.Parameter(phase_high[None, :].expand(input_size, -1),
-                                         requires_grad=train_ab)
+                                       requires_grad=train_ab)
         self.equal_size_conv = nn.Conv2d(1, output_size, (g + k, input_size))
 
     def forward(self, x):
@@ -547,7 +533,99 @@ class ReLUKANLayer(nn.Module):
         return x
 
 
-if __name__ == '__main__':
-    layer = ReLUKANLayer(4, 5, 3, 8)
-    t = torch.randn((16, 4))
-    out = layer(t)
+class BottleNeckGRAMLayer(nn.Module):
+    def __init__(self, in_channels, out_channels, degree=3, act=nn.SiLU,
+                 dim_reduction: float = 8, min_internal: int = 16):
+        super(BottleNeckGRAMLayer, self).__init__()
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.degrees = degree
+
+        self.dim_reduction = dim_reduction
+        self.min_internal = min_internal
+
+        inner_dim = int(max(in_channels / dim_reduction,
+                            out_channels / dim_reduction))
+        if inner_dim < min_internal:
+            self.inner_dim = min(min_internal, in_channels, out_channels)
+        else:
+            self.inner_dim = inner_dim
+
+        self.act = act()
+
+        self.inner_proj = nn.Linear(in_channels, self.inner_dim)
+        self.outer_proj = nn.Linear(self.inner_dim, out_channels)
+
+        self.norm = nn.LayerNorm(out_channels, dtype=torch.float32)
+
+        self.beta_weights = nn.Parameter(torch.zeros(degree + 1, dtype=torch.float32))
+
+        self.grams_basis_weights = nn.Parameter(
+            torch.zeros(self.inner_dim, self.inner_dim, degree + 1, dtype=torch.float32)
+        )
+
+        self.base_weights = nn.Parameter(
+            torch.zeros(out_channels, in_channels, dtype=torch.float32)
+        )
+
+        self.init_weights()
+
+    def init_weights(self):
+        nn.init.normal_(
+            self.beta_weights,
+            mean=0.0,
+            std=1.0 / (self.in_channels * (self.degrees + 1.0)),
+        )
+
+        nn.init.xavier_uniform_(self.grams_basis_weights)
+
+        nn.init.xavier_uniform_(self.base_weights)
+        nn.init.xavier_uniform_(self.inner_proj.weight)
+        nn.init.xavier_uniform_(self.outer_proj.weight)
+
+    def beta(self, n, m):
+        return (
+                       ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
+               ) * self.beta_weights[n]
+
+    @lru_cache(maxsize=128)
+    def gram_poly(self, x, degree):
+        p0 = x.new_ones(x.size())
+
+        if degree == 0:
+            return p0.unsqueeze(-1)
+
+        p1 = x
+        grams_basis = [p0, p1]
+
+        for i in range(2, degree + 1):
+            p2 = x * p1 - self.beta(i - 1, i) * p0
+            grams_basis.append(p2)
+            p0, p1 = p1, p2
+
+        return torch.stack(grams_basis, dim=-1)
+
+    def forward(self, x):
+
+        basis = F.linear(self.act(x), self.base_weights)
+
+        x = self.inner_proj(x)
+
+        x = torch.tanh(x).contiguous()
+
+        grams_basis = self.act(self.gram_poly(x, self.degrees))
+
+        y = einsum(
+            grams_basis,
+            self.grams_basis_weights,
+            "b l d, l o d -> b o",
+        )
+
+        y = self.outer_proj(y)
+
+        y = self.act(self.norm(y + basis))
+
+        y = y.view(-1, self.out_channels)
+
+        return y

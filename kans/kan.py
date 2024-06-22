@@ -21,8 +21,10 @@
 from typing import List
 
 import torch.nn as nn
+
 from utils import L1
-from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer, BernsteinKANLayer, ReLUKANLayer
+from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer, WavKANLayer, JacobiKANLayer, \
+    BernsteinKANLayer, ReLUKANLayer, BottleNeckGRAMLayer
 
 
 class KAN(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
@@ -202,6 +204,40 @@ class KAGN(nn.Module):
         return x
 
 
+class BottleNeckKAGN(nn.Module):
+    def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3,
+                 base_activation=nn.SiLU, first_dropout: bool = True,
+                 dim_reduction: float = 8, min_internal: int = 16, **kwargs):
+        super(BottleNeckKAGN, self).__init__()  # Initialize the parent nn.Module class
+
+        # layers_hidden: A list of integers specifying the number of neurons in each layer
+        self.layers_hidden = layers_hidden
+        # polynomial_order: Order up to which Legendre polynomials are calculated
+        self.polynomial_order = degree
+        # list of layers
+        self.layers = nn.ModuleList([])
+        if dropout > 0 and first_dropout:
+            self.layers.append(nn.Dropout(p=dropout))
+        self.base_activation = base_activation
+        self.num_layers = len(layers_hidden[:-1])
+
+        for i, (in_features, out_features) in enumerate(zip(layers_hidden[:-1], layers_hidden[1:])):
+            # Base weight for linear transformation in each layer
+            layer = BottleNeckGRAMLayer(in_features, out_features, degree, act=base_activation,
+                                        dim_reduction=dim_reduction, min_internal=min_internal)
+            if l1_decay > 0 and i != self.num_layers - 1:
+                layer = L1(layer, l1_decay)
+            self.layers.append(layer)
+
+            if dropout > 0 and i != self.num_layers - 1:
+                self.layers.append(nn.Dropout(p=dropout))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 class KABN(nn.Module):
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0, degree=3,
                  base_activation=nn.SiLU, first_dropout: bool = True, **kwargs):
@@ -266,7 +302,6 @@ class KAJN(nn.Module):
         return x
 
 
-# TODO: implement
 class WavKAN(nn.Module):
     def __init__(self, layers_hidden, dropout: float = 0.0, l1_decay: float = 0.0,
                  first_dropout: bool = True, wavelet_type: str = 'mexican_hat', **kwargs):
@@ -368,11 +403,18 @@ def mlp_kagn(layers_hidden, dropout: float = 0.0, degree: int = 3,
                 degree=degree, l1_decay=l1_decay)
 
 
+def mlp_bottleneck_kagn(layers_hidden, dropout: float = 0.0, degree: int = 3,
+                        base_activation: nn.Module = nn.GELU, l1_decay: float = 0.0,
+                        dim_reduction: float = 8, min_internal: int = 16, ) -> BottleNeckKAGN:
+    return BottleNeckKAGN(layers_hidden, dropout=dropout, base_activation=base_activation,
+                          degree=degree, l1_decay=l1_decay, dim_reduction=dim_reduction, min_internal=min_internal)
+
+
 def mlp_relukan(layers_hidden, dropout: float = 0.0, a: int = 1, b: int = 1, train_ab: bool = True,
                 l1_decay: float = 0.0) -> ReLUKAN:
     return ReLUKAN(layers_hidden, dropout=dropout, a=a, b=b, train_ab=train_ab, l1_decay=l1_decay)
 
 
 def mlp_wav_kan(layers_hidden, dropout: float = 0.0,
-                wavelet_type: str = 'mexican_hat',  l1_decay: float = 0.0) -> WavKAN:
+                wavelet_type: str = 'mexican_hat', l1_decay: float = 0.0) -> WavKAN:
     return WavKAN(layers_hidden, dropout=dropout, wavelet_type=wavelet_type, l1_decay=l1_decay)

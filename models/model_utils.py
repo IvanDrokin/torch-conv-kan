@@ -6,6 +6,7 @@ from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANC
     WavKANConv2DLayer
 from kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer, BottleNeckKAGNConv2DLayer
 from kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
+from kan_convs import MoEBottleNeckKAGNConv2DLayer
 from utils import L1
 
 
@@ -120,7 +121,7 @@ def self_kagn_conv3x3(in_planes: int, inner_projection: int = None, degree: int 
     """3x3 convolution with padding"""
     conv = SelfKAGNtention2D(
         in_planes,
-        inner_projection=inner_projection,
+        inner_projection=inner_projection if inner_projection is None else in_planes // inner_projection,
         degree=degree,
         kernel_size=3,
         stride=stride,
@@ -158,6 +159,34 @@ def bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, gr
     return conv
 
 
+def moe_bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
+                            dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                            l1_decay: float = 0.0, dim_reduction: float = 8,
+                            num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
+                            **norm_kwargs) -> MoEBottleNeckKAGNConv2DLayer:
+    """3x3 convolution with padding"""
+    conv = MoEBottleNeckKAGNConv2DLayer(
+        in_planes,
+        out_planes,
+        degree=degree,
+        kernel_size=3,
+        stride=stride,
+        padding=dilation,
+        dilation=dilation,
+        groups=groups,
+        dropout=dropout,
+        dim_reduction=dim_reduction,
+        norm_layer=norm_layer,
+        num_experts=num_experts,
+        noisy_gating=noisy_gating,
+        k=k,
+        **norm_kwargs
+    )
+    if l1_decay > 0:
+        conv = L1(conv, l1_decay)
+    return conv
+
+
 def bottleneck_kagn_conv1x1(in_planes: int, out_planes: int, degree: int = 3, stride: int = 1,
                             dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
                             l1_decay: float = 0.0, **norm_kwargs) -> KAGNConv2DLayer:
@@ -177,7 +206,7 @@ def self_bottleneck_kagn_conv3x3(in_planes: int, inner_projection: int = None, d
     """3x3 convolution with padding"""
     conv = BottleNeckSelfKAGNtention2D(
         in_planes,
-        inner_projection=inner_projection,
+        inner_projection=inner_projection if inner_projection is None else in_planes // inner_projection,
         degree=degree,
         kernel_size=3,
         stride=stride,

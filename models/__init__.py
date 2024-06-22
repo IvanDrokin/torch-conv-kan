@@ -1,4 +1,4 @@
-from .automodel import AutoKAN
+from .automodel import AutoKAN, TinyAutoKAGN
 from .baselines.conv_baseline import SimpleConv, EightSimpleConv
 from .baselines.conv_kacn_baseline import SimpleConvKACN, EightSimpleConvKACN
 from .baselines.conv_kagn_baseline import SimpleConvKAGN, EightSimpleConvKAGN
@@ -18,4 +18,4 @@ from .reskanet import reskanet_18x32p, reskacnet_18x32p, fast_reskanet_18x32p, r
 from .u2kanet import u2kagnet, u2kacnet, u2kalnet, u2kanet, fast_u2kanet, u2net, u2net_small, u2kagnet_bn
 from .u2kanet import u2kagnet_small, u2kacnet_small, u2kalnet_small, u2kanet_small, fast_u2kanet_small
 from .ukanet import ukanet_18, ukalnet_18, fast_ukanet_18, ukacnet_18, ukagnet_18
-from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn, moe_vggkagn, vgg_wav_kan, vggkagn_bn
+from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn, moe_vggkagn, vgg_wav_kan, vggkagn_bn, moe_vggkagn_bn

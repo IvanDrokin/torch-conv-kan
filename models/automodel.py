@@ -1,4 +1,5 @@
 from typing import Union
+
 import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
 
@@ -8,7 +9,7 @@ from .reskanet import reskagnet18, reskagnet50, reskagnet101, reskagnet152
 from .u2kanet import u2kagnet, u2kacnet, u2kalnet, u2kanet, fast_u2kanet
 from .u2kanet import u2kagnet_small, u2kacnet_small, u2kalnet_small, u2kanet_small, fast_u2kanet_small
 from .ukanet import ukanet_18, ukalnet_18, fast_ukanet_18, ukacnet_18, ukagnet_18
-from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn, vgg_wav_kan
+from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn, vgg_wav_kan, vggkagn_bn, moe_vggkagn_bn
 
 
 def get_activation_from_string(activation_string):
@@ -336,3 +337,84 @@ class AutoKAN(PyTorchModelHubMixin):
 
     def to(self, *args, **kwargs):
         self.model.to(*args, **kwargs)
+
+
+class TinyAutoKAGN(PyTorchModelHubMixin):
+    """
+    Easy interface for a set of BottleNeckKAGNConv Nets for TinyImageNet experiments
+    """
+
+    def __init__(self, input_channels, num_classes, model_type,
+                 is_moe: bool = False, groups: int = 1, degree: int = 3, dropout: float = 0.0,
+                 l1_decay: float = 0.0,
+                 dropout_linear: float = 0.25, width_scale: int = 1,
+                 norm_layer: nn.Module = nn.BatchNorm2d, affine: bool = True,
+                 num_experts: int = 8, noisy_gating: bool = True, k: int = 2, **kwargs):
+
+        super(TinyAutoKAGN).__init__()
+
+        self.model = None
+        self.config = kwargs
+
+        if model_type == 'VGG':
+            vgg_type = kwargs.pop('vgg_type', 'VGG11')
+            head_type = kwargs.pop('head_type', 'Linear')
+            last_attention = kwargs.pop('last_attention', False)
+            sa_inner_projection = kwargs.pop('sa_inner_projection', None)
+            expected_feature_shape = kwargs.pop('expected_feature_shape', (1, 1))
+            if is_moe:
+                self.model = moe_vggkagn_bn(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout,
+                                            l1_decay=l1_decay, norm_layer=norm_layer,
+                                            dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
+                                            expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                                            num_experts=num_experts, noisy_gating=noisy_gating, k=k, affine=affine,
+                                            last_attention=last_attention, sa_inner_projection=sa_inner_projection)
+            else:
+                self.model = vggkagn_bn(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout,
+                                        l1_decay=l1_decay, dropout_linear=dropout_linear, vgg_type=vgg_type,
+                                        head_type=head_type,
+                                        expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                                        affine=affine, last_attention=last_attention,
+                                        sa_inner_projection=sa_inner_projection)
+
+        if model_type == 'ResNet':
+            pass
+
+        if model_type == 'DenseNet':
+            pass
+
+    def __call__(self, *args, **kwargs):
+        return self.model.__call__(*args, **kwargs)
+
+    def forward(self, *args, **kwargs):
+        return self.model.forward(*args, **kwargs)
+
+    def state_dict(self, *args, **kwargs):
+        return self.model.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, *args, **kwargs):
+        return self.model.load_state_dict(*args, **kwargs)
+
+    def modules(self, *args, **kwargs):
+        return self.model.modules(*args, **kwargs)
+
+    def parameters(self, *args, **kwargs):
+        return self.model.parameters(*args, **kwargs)
+
+    def train(self, *args, **kwargs):
+        self.model.train(*args, **kwargs)
+
+    def eval(self, *args, **kwargs):
+        self.model.eval(*args, **kwargs)
+
+    def to(self, *args, **kwargs):
+        self.model.to(*args, **kwargs)
+
+    def children(self, *args, **kwargs):
+        return self.model.children(*args, **kwargs)
+
+    def register_forward_pre_hook(self, *args, **kwargs):
+        return self.model.register_forward_pre_hook(*args, **kwargs)
+
+    def register_forward_hook(self, *args, **kwargs):
+        return self.model.register_forward_hook(*args, **kwargs)

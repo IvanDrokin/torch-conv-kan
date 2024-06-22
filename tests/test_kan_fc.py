@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from kans import KANLayer, KALNLayer, ChebyKANLayer, GRAMLayer, FastKANLayer, WavKANLayer, JacobiKANLayer, \
-    BernsteinKANLayer, ReLUKANLayer
+    BernsteinKANLayer, ReLUKANLayer, BottleNeckGRAMLayer
 
 
 def test_kan_fc():
@@ -66,6 +66,18 @@ def test_kagn_fc():
 
     input_tensor = torch.rand((bs, input_dim))
     conv = GRAMLayer(input_dim, output_dim, degree, act=nn.SiLU)
+    out = conv(input_tensor)
+    assert out.shape == (bs, output_dim)
+
+
+def test_bn_kagn_fc():
+    bs = 6
+    input_dim = 64
+    output_dim = 128
+    degree = 3
+
+    input_tensor = torch.rand((bs, input_dim))
+    conv = BottleNeckGRAMLayer(input_dim, output_dim, degree, act=nn.SiLU, dim_reduction=4, min_internal=8)
     out = conv(input_tensor)
     assert out.shape == (bs, output_dim)
 

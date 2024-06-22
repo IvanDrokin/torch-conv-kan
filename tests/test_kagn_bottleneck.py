@@ -73,9 +73,9 @@ def test_moe_kagn_conv_1d(dropout, groups):
     assert out.shape == (bs, output_dim, spatial_dim)
 
 
-@pytest.mark.parametrize("dropout, groups", itertools.product([0.0, 0.5],
-                                                              [1, 4]))
-def test_moe_kagn_conv_2d(dropout, groups):
+@pytest.mark.parametrize("dropout, groups, pregate", itertools.product([0.0, 0.5],
+                                                              [1, 4], [True, False]))
+def test_moe_kagn_conv_2d(dropout, groups, pregate):
     bs = 6
     spatial_dim = 32
     input_dim = 4
@@ -85,7 +85,7 @@ def test_moe_kagn_conv_2d(dropout, groups):
 
     input_tensor = torch.rand((bs, input_dim, spatial_dim, spatial_dim))
     conv = MoEBottleNeckKAGNConv2DLayer(input_dim, output_dim, kernel_size, groups=groups, padding=padding,
-                                        stride=1, dilation=1, dropout=dropout, degree=3)
+                                        stride=1, dilation=1, dropout=dropout, degree=3, pregate=pregate)
     out, loss = conv(input_tensor)
     assert out.shape == (bs, output_dim, spatial_dim, spatial_dim)
 

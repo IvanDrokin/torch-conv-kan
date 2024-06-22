@@ -10,14 +10,20 @@ from huggingface_hub import PyTorchModelHubMixin
 from kans import mlp_kan, mlp_fastkan, mlp_kacn, mlp_kagn, mlp_kaln, mlp_wav_kan
 from .extra_layers import MatryoshkaHead
 from .model_utils import kan_conv3x3, kaln_conv3x3, fast_kan_conv3x3, kacn_conv3x3, kagn_conv3x3, wav_kan_conv3x3
+from .model_utils import moe_bottleneck_kagn_conv3x3
 from .model_utils import moe_kagn_conv3x3, bottleneck_kagn_conv3x3, self_kagn_conv3x3, self_bottleneck_kagn_conv3x3
 
-
 cfgs: Dict[str, List[Union[str, int]]] = {
-    "VGG11": [16, "M", 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M"],
-    "VGG13": [16, 16, "M", 32, 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M"],
-    "VGG16": [16, 16, "M", 32, 32, "M", 64, 64, 64, "M", 128, 128, 128, "M", 128, 128, 128, "M"],
-    "VGG19": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "M", 128, 128, 128, 128, "M", 128, 128, 128, 128, "M"],
+    "VGG11": [16, "M", 32, "M", 64, 64, "M", 128, 128, "M", 128, 128],
+    "VGG13": [16, 16, "M", 32, 32, "M", 64, 64, "M", 128, 128, "M", 128, 128],
+    "VGG16": [16, 16, "M", 32, 32, "M", 64, 64, 64, "M", 128, 128, 128, "M", 128, 128, 128],
+    "VGG19": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "M", 128, 128, 128, 128, "M", 128, 128, 128, 128],
+
+    "VGG11sa": [16, "M", 32, "M", 64, 64, "SAM", 128, 128, "SAM", 128, 128],
+    "VGG13sa": [16, 16, "M", 32, 32, "M", 64, 64, "SAM", 128, 128, "SAM", 128, 128],
+    "VGG16sa": [16, 16, "M", 32, 32, "M", 64, 64, 64, "SAM", 128, 128, 128, "SAM", 128, 128, 128],
+    "VGG19sa": [16, 16, "M", 32, 32, "M", 64, 64, 64, 64, "SAM", 128, 128, 128, 128, "SAM", 128, 128, 128, 128],
+
     "VGG11v2": [16, "M", 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M", 128, 128],
     "VGG13v2": [16, 16, "M", 32, 32, "M", 64, 64, "M", 128, 128, "M", 128, 128, "M", 128, 128],
     "VGG16v2": [16, 16, "M", 32, 32, "M", 64, 64, 64, "M", 128, 128, 128, "M", 128, 128, 128, "M", 128, 128],
@@ -335,6 +341,49 @@ def vggkagn_bn(input_channels, num_classes, groups: int = 1, degree: int = 3, dr
                       expected_feature_shape=expected_feature_shape, width_scale=width_scale,
                       affine=affine, norm_layer=norm_layer, last_attention=last_attention,
                       sa_inner_projection=sa_inner_projection)
+
+
+class MoE_VGGKAGN_BN(VGG, PyTorchModelHubMixin):
+    def __init__(self, input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
+                 l1_decay: float = 0.0, dropout_linear: float = 0.25, vgg_type: str = 'VGG11',
+                 head_type: str = 'Linear',
+                 expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                 norm_layer: nn.Module = nn.InstanceNorm2d,
+                 num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
+                 last_attention: bool = False, sa_inner_projection: int = None):
+        conv_fun = partial(moe_bottleneck_kagn_conv3x3, degree=degree,
+                           dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine, norm_layer=norm_layer,
+                           num_experts=num_experts, k=k, noisy_gating=noisy_gating)
+        conv_fun_first = partial(bottleneck_kagn_conv3x3, degree=degree, l1_decay=l1_decay,
+                                 affine=affine, norm_layer=norm_layer)
+        kan_fun = partial(mlp_kagn, degree=degree,
+                          dropout=dropout_linear, l1_decay=l1_decay)
+        kan_att_fun = partial(self_bottleneck_kagn_conv3x3, degree=degree, inner_projection=sa_inner_projection,
+                              dropout=dropout, groups=groups, affine=affine, norm_layer=norm_layer)
+
+        features, head = self.make_layers(cfgs[vgg_type], head_type, conv_fun, conv_fun_first, kan_fun,
+                                          expected_feature_shape=expected_feature_shape,
+                                          num_input_features=input_channels, num_classes=num_classes,
+                                          width_scale=width_scale,
+                                          head_dropout=dropout_linear,
+                                          kan_att_fun=kan_att_fun,
+                                          last_attention=last_attention)
+        super().__init__(features, head, expected_feature_shape)
+
+
+def moe_vggkagn_bn(input_channels, num_classes, groups: int = 1, degree: int = 3, dropout: float = 0.0,
+                   l1_decay: float = 0.0,
+                   dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
+                   expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
+                   norm_layer: nn.Module = nn.InstanceNorm2d,
+                   last_attention: bool = False, sa_inner_projection: int = None,
+                   num_experts: int = 8, noisy_gating: bool = True, k: int = 2,):
+    return MoE_VGGKAGN_BN(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout, l1_decay=l1_decay,
+                          dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,
+                          expected_feature_shape=expected_feature_shape, width_scale=width_scale,
+                          affine=affine, norm_layer=norm_layer, last_attention=last_attention,
+                          sa_inner_projection=sa_inner_projection, num_experts=num_experts, noisy_gating=noisy_gating,
+                          k=k)
 
 
 class VGGKACN(VGG, PyTorchModelHubMixin):

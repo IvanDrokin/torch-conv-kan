@@ -100,10 +100,14 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
         project_config=accelerator_project_config,
         kwargs_handlers=[ddp_kwargs]
     )
+    wandb_params = {"entity": cfg.wandb.entity, }
+    if "runname" in cfg.wandb:
+        wandb_params = {"entity": cfg.wandb.entity, 'name': cfg.wandb.runname}
+
     accelerator.init_trackers(
         project_name=cfg.wandb.project_name,
         config=dict(cfg),
-        init_kwargs={"wandb": {"entity": cfg.wandb.entity}}
+        init_kwargs={"wandb": wandb_params}
     )
 
     # Make one log on every process with the configuration for debugging.
@@ -235,6 +239,13 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     cfg.max_train_steps = cfg.epochs * num_update_steps_per_epoch
+
+
+    save_checkpoints = True
+    if "save_checkpoints" in cfg:
+        save_checkpoints = cfg.save_checkpoints
+        if not save_checkpoints:
+            logger.info(f"CHECKPOINT SAVING DISABLED")
 
     # Train!
     total_batch_size = cfg.train_batch_size * accelerator.num_processes * cfg.gradient_accumulation_steps
@@ -419,7 +430,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 if cfg.model.is_moe:
                     predicts, _ = predicts
                 if isinstance(predicts, tuple):
-                    if cfg.metrics.report_type == 'classification':
+                    if cfg.metrics.report_type == 'classification' or cfg.metrics.report_type == 'classification_minimum':
                         predicts = predicts[-1]
                     else:
                         predicts = predicts[0]
@@ -473,15 +484,12 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                 for key_layer, image_layer in report.items():
                     wandb_tracker.log({key_layer: [wandb.Image(image_layer), ]}, step=global_step)
                 logger.info(f"CAM Visualization logged")
+            if save_checkpoints:
+                save_checkpoint_name = f"checkpoint-{epoch}-{cfg.tracking_metric}-{metrics[cfg.tracking_metric]}"
 
-            if cfg.metrics.report_type == 'classification':
-                save_checkpoint_name = f"checkpoint-{epoch}-acc-{metrics[cfg.tracking_metric]}"
-            else:
-                save_checkpoint_name = f"checkpoint-{epoch}-dice-{metrics[cfg.tracking_metric]}"
-
-            save_path = os.path.join(cfg.output_dir, save_checkpoint_name)
-            accelerator.save_state(save_path)
-            logger.info(f"Saved state to {save_path}")
+                save_path = os.path.join(cfg.output_dir, save_checkpoint_name)
+                accelerator.save_state(save_path)
+                logger.info(f"Saved state to {save_path}")
 
         gc.collect()
     # Create the pipeline using using the trained modules and save it.

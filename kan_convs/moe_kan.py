@@ -44,6 +44,8 @@ class MoEKANConvBase(nn.Module):
 
         self.softplus = nn.Softplus()
         self.softmax = nn.Softmax(1)
+        self.register_buffer("mean", torch.tensor([0.0]))
+        self.register_buffer("std", torch.tensor([1.0]))
 
         if conv_class in [KANConv1DLayer, FastKANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer, KAGNConv1DLayer,
                           WavKANConv1DLayer, BottleNeckKAGNConv1DLayer]:
@@ -75,8 +77,9 @@ class MoEKANConvBase(nn.Module):
         """
         eps = 1e-10
         # if only num_experts = 1
+
         if x.shape[0] == 1:
-            return torch.Tensor([0])
+            return torch.tensor([0], device=x.device, dtype=x.dtype)
         return x.float().var() / (x.float().mean() ** 2 + eps)
 
     def _gates_to_load(self, gates):
@@ -106,18 +109,17 @@ class MoEKANConvBase(nn.Module):
         Returns:
         a `Tensor` of shape [batch, n].
         """
-
         batch = clean_values.size(0)
         m = noisy_top_values.size(1)
         top_values_flat = noisy_top_values.flatten()
+
         threshold_positions_if_in = torch.arange(batch, device=clean_values.device) * m + self.k
         threshold_if_in = torch.unsqueeze(torch.gather(top_values_flat, 0, threshold_positions_if_in), 1)
         is_in = torch.gt(noisy_values, threshold_if_in)
         threshold_positions_if_out = threshold_positions_if_in - 1
         threshold_if_out = torch.unsqueeze(torch.gather(top_values_flat, 0, threshold_positions_if_out), 1)
         # is each value currently in the top k.
-        normal = Normal(torch.tensor([0.0], device=clean_values.device),
-                        torch.tensor([1.0], device=clean_values.device))
+        normal = Normal(self.mean, self.std)
         prob_if_in = normal.cdf((clean_values - threshold_if_in) / noise_stddev)
         prob_if_out = normal.cdf((clean_values - threshold_if_out) / noise_stddev)
         prob = torch.where(is_in, prob_if_in, prob_if_out)
@@ -135,21 +137,22 @@ class MoEKANConvBase(nn.Module):
             load: a Tensor with shape [num_experts]
         """
         clean_logits = x @ self.w_gate
-        if self.noisy_gating:
+        if self.noisy_gating and train:
             raw_noise_stddev = x @ self.w_noise
-            noise_stddev = ((self.softplus(raw_noise_stddev) + noise_epsilon) * train)
+            noise_stddev = ((self.softplus(raw_noise_stddev) + noise_epsilon))
             noisy_logits = clean_logits + (torch.randn_like(clean_logits) * noise_stddev)
             logits = noisy_logits
         else:
             logits = clean_logits
 
         # calculate topk + 1 that will be needed for the noisy gates
+        logits = self.softmax(logits)
         top_logits, top_indices = logits.topk(min(self.k + 1, self.num_experts), dim=1)
         top_k_logits = top_logits[:, :self.k]
         top_k_indices = top_indices[:, :self.k]
-        top_k_gates = self.softmax(top_k_logits)
+        top_k_gates = top_k_logits / (top_k_logits.sum(1, keepdim=True) + 1e-6)  # normalization
 
-        zeros = torch.zeros_like(logits, requires_grad=True, device=x.device)
+        zeros = torch.zeros_like(logits, requires_grad=True)
         gates = zeros.scatter(1, top_k_indices, top_k_gates)
 
         if self.noisy_gating and self.k < self.num_experts and train:
@@ -158,7 +161,7 @@ class MoEKANConvBase(nn.Module):
             load = self._gates_to_load(gates)
         return gates, load
 
-    def forward(self, x, train=True, loss_coef=1):
+    def forward(self, x, train=True, loss_coef=1e-02):
         """Args:
         x: tensor shape [batch_size, input_size]
         train: a boolean scalar.
@@ -171,8 +174,7 @@ class MoEKANConvBase(nn.Module):
         """
 
         gate_x = torch.flatten(self.avgpool(x), 1)
-
-        gates, load = self.noisy_top_k_gating(gate_x, train)
+        gates, load = self.noisy_top_k_gating(gate_x, self.training)
         # calculate importance loss
         importance = gates.sum(0)
         #
@@ -181,7 +183,7 @@ class MoEKANConvBase(nn.Module):
 
         dispatcher = SparseDispatcher(self.num_experts, gates)
         expert_inputs = dispatcher.dispatch(x)
-        # gates = dispatcher.expert_to_gates()
+        gates = dispatcher.expert_to_gates()
         expert_outputs = [self.experts[i](expert_inputs[i]) for i in range(self.num_experts)]
         y = dispatcher.combine(expert_outputs, self.conv_dims)
         return y, loss
