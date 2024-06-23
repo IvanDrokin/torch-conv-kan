@@ -12,7 +12,8 @@ class NoiseInjection(nn.Module):
         self.alpha = alpha
 
     def get_noise(self, x):
-        std = torch.std(x, dim=1, keepdim=True)
+        dims = tuple(i for i in range(len(x.shape)) if i != 1)
+        std = torch.std(x, dim=dims, keepdim=True)
         noise = torch.randn(x.shape, device=x.device, dtype=x.dtype) * std
         return noise
 
@@ -33,7 +34,8 @@ class NoiseMultiplicativeInjection(nn.Module):
         self.betta = betta
 
     def get_noise(self, x):
-        std = torch.std(x, dim=1, keepdim=True)
+        dims = tuple(i for i in range(len(x.shape)) if i != 1)
+        std = torch.std(x, dim=dims, keepdim=True)
         noise = torch.randn(x.shape, device=x.device, dtype=x.dtype) * std
         return noise
 

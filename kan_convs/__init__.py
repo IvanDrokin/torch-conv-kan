@@ -1,3 +1,5 @@
+from .attention_conv import BottleNeckKAGNFocalModulation1D, BottleNeckKAGNFocalModulation2D, \
+    BottleNeckKAGNFocalModulation3D
 from .attention_conv import BottleNeckSelfKAGNtention1D, BottleNeckSelfKAGNtention2D, BottleNeckSelfKAGNtention3D
 from .attention_conv import BottleNeckSelfReLUKANtention1D, BottleNeckSelfReLUKANtention2D, \
     BottleNeckSelfReLUKANtention3D

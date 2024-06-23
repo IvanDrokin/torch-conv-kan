@@ -240,3 +240,139 @@ class BottleNeckSelfReLUKANtention3D(SelfKANtentionND):
                                                              padding=padding,
                                                              stride=stride, dilation=dilation, dropout=dropout,
                                                              norm_layer=norm_layer, **norm_kwargs)
+
+
+class KANFocalModulationND(nn.Module):
+    def __init__(self, dim, conv_kan_layer, focal_norm_layer: dict, focal_window, focal_level, focal_factor=2,
+                 use_postln_in_modulation=False, normalize_modulator=False, full_kan: bool = True,
+                 **kan_params):
+        super().__init__()
+
+        self.dim = dim
+        self.focal_window = focal_window
+        self.focal_level = focal_level
+        self.focal_factor = focal_factor
+        self.use_postln_in_modulation = use_postln_in_modulation
+        self.normalize_modulator = normalize_modulator
+
+        if conv_kan_layer in [FastKANConv1DLayer, KANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer, KAGNConv1DLayer,
+                              WavKANConv1DLayer, KAJNConv1DLayer, KABNConv1DLayer, BottleNeckKAGNConv1DLayer,
+                              MoEBottleNeckKAGNConv1DLayer, ReLUKANConv1DLayer, BottleNeckReLUKANConv1DLayer]:
+            self.global_pool = nn.AdaptiveAvgPool1d((1, ))
+            self.ndim = 1
+        elif conv_kan_layer in [FastKANConv2DLayer, KANConv2DLayer, KALNConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer,
+                                WavKANConv2DLayer, KAJNConv2DLayer, KABNConv2DLayer, BottleNeckKAGNConv2DLayer,
+                                MoEBottleNeckKAGNConv2DLayer, ReLUKANConv2DLayer, BottleNeckReLUKANConv2DLayer]:
+            self.ndim = 2
+            self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        elif conv_kan_layer in [FastKANConv3DLayer, KANConv3DLayer, KALNConv3DLayer, KACNConv3DLayer, KAGNConv3DLayer,
+                                WavKANConv3DLayer, KAJNConv3DLayer, KABNConv3DLayer, BottleNeckKAGNConv3DLayer,
+                                MoEBottleNeckKAGNConv3DLayer, ReLUKANConv3DLayer, BottleNeckReLUKANConv3DLayer]:
+            self.global_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+            self.ndim = 3
+
+        if full_kan:
+            self.f = conv_kan_layer(dim, 2 * dim + (self.focal_level + 1), 1, padding=0, **kan_params)
+            self.h = conv_kan_layer(dim, dim, 1, padding=0, **kan_params)
+        else:
+            if self.ndim == 1:
+                self.f = nn.Conv1d(dim, 2 * dim + (self.focal_level + 1), 1)
+                self.h = nn.Conv1d(dim, dim, 1)
+            elif self.ndim == 2:
+                self.f = nn.Conv2d(dim, 2 * dim + (self.focal_level + 1), 1)
+                self.h = nn.Conv2d(dim, dim, 1)
+            else:
+                self.f = nn.Conv3d(dim, 2 * dim + (self.focal_level + 1), 1)
+                self.h = nn.Conv3d(dim, dim, 1)
+
+        self.proj = conv_kan_layer(dim, dim, 1, **kan_params)
+        self.focal_layers = nn.ModuleList()
+
+        self.kernel_sizes = []
+        for k in range(self.focal_level):
+            kernel_size = self.focal_factor * k + self.focal_window
+            self.focal_layers.append(
+                conv_kan_layer(dim, dim, kernel_size, stride=1,
+                               groups=dim, padding=kernel_size // 2, **kan_params)
+            )
+            self.kernel_sizes.append(kernel_size)
+
+        if use_postln_in_modulation:
+            self.norm_layer = focal_norm_layer['layer'](dim, **focal_norm_layer['params'])
+
+    def forward(self, x):
+        """
+        Args:
+            x: input features with shape of (B, C, H, W)
+        """
+        channels = x.shape[1]
+
+        # pre linear projection
+        x = self.f(x)
+        q, ctx, self.gates = torch.split(x, (channels, channels, self.focal_level + 1), 1)
+
+        # context aggregation
+        ctx_all = 0
+        for l in range(self.focal_level):
+            ctx = self.focal_layers[l](ctx)
+            ctx_all = ctx_all + ctx * self.gates[:, l:l + 1]
+        ctx_global = self.global_pool(ctx_all)
+        ctx_all = ctx_all + ctx_global * self.gates[:, self.focal_level:]
+
+        # normalize context
+        if self.normalize_modulator:
+            ctx_all = ctx_all / (self.focal_level + 1)
+
+        # focal modulation
+        modulator = self.h(ctx_all)
+        x_out = q * modulator
+        if self.use_postln_in_modulation:
+            x_out = self.norm_layer(x_out)
+
+        # post projection
+        x_out = self.proj(x_out)
+        return x_out
+
+
+class BottleNeckKAGNFocalModulation1D(KANFocalModulationND):
+    def __init__(self, input_dim, focal_window=3, focal_level=2, focal_factor=2,
+                 use_postln_in_modulation=True, normalize_modulator=True, full_kan: bool = True,
+                 degree=3, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
+        focal_norm_layer = {'layer': norm_layer, 'params': norm_kwargs}
+
+        super(BottleNeckKAGNFocalModulation1D, self).__init__(input_dim, BottleNeckKAGNConv1DLayer, focal_norm_layer,
+                                                              focal_window, focal_level, focal_factor=focal_factor,
+                                                              use_postln_in_modulation=use_postln_in_modulation,
+                                                              normalize_modulator=normalize_modulator,
+                                                              full_kan=full_kan, degree=degree, dropout=dropout,
+                                                              norm_layer=norm_layer, **norm_kwargs)
+
+
+class BottleNeckKAGNFocalModulation2D(KANFocalModulationND):
+    def __init__(self, input_dim, focal_window=3, focal_level=2, focal_factor=2,
+                 use_postln_in_modulation=True, normalize_modulator=True, full_kan: bool = True,
+                 degree=3, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
+        focal_norm_layer = {'layer': norm_layer, 'params': norm_kwargs}
+        super(BottleNeckKAGNFocalModulation2D, self).__init__(input_dim, BottleNeckKAGNConv2DLayer, focal_norm_layer,
+                                                             focal_window, focal_level, focal_factor=focal_factor,
+                                                             use_postln_in_modulation=use_postln_in_modulation,
+                                                             normalize_modulator=normalize_modulator,
+                                                             full_kan=full_kan, degree=degree, dropout=dropout,
+                                                             norm_layer=norm_layer, **norm_kwargs)
+
+
+class BottleNeckKAGNFocalModulation3D(KANFocalModulationND):
+    def __init__(self, input_dim, focal_window=3, focal_level=2, focal_factor=2,
+                 use_postln_in_modulation=True, normalize_modulator=True, full_kan: bool = True,
+                 degree=3, dropout: float = 0.0,
+                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
+        focal_norm_layer = {'layer': norm_layer, 'params': norm_kwargs}
+
+        super(BottleNeckKAGNFocalModulation3D, self).__init__(input_dim, BottleNeckKAGNConv3DLayer, focal_norm_layer,
+                                                              focal_window, focal_level, focal_factor=focal_factor,
+                                                              use_postln_in_modulation=use_postln_in_modulation,
+                                                              normalize_modulator=normalize_modulator,
+                                                              full_kan=full_kan, degree=degree, dropout=dropout,
+                                                              norm_layer=norm_layer, **norm_kwargs)
