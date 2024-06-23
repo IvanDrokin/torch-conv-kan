@@ -8,10 +8,11 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as cp
 from torch import Tensor
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
+from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
+    BottleNeckKAGNConv2DLayer
+from kans import KAN, KALN, KAGN, KACN, FastKAN, BottleNeckKAGN
 from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kan_conv3x3, kaln_conv3x3, \
-    fast_kan_conv3x3, kacn_conv3x3, kagn_conv1x1, kagn_conv3x3
-from kans import KAN, KALN, KAGN, KACN, FastKAN
+    fast_kan_conv3x3, kacn_conv3x3, kagn_conv1x1, kagn_conv3x3, bottleneck_kagn_conv1x1, bottleneck_kagn_conv3x3
 
 
 class _DenseLayer(nn.Module):
@@ -239,6 +240,32 @@ class _FastKANDenseBlock(_DenseBlock):
                                                  memory_efficient=memory_efficient)
 
 
+class _BottleNeckKAGNDenseBlock(_DenseBlock):
+    def __init__(self,
+                 num_layers: int,
+                 num_input_features: int,
+                 bn_size: int,
+                 growth_rate: int,
+                 dropout: float = 0.0,
+                 memory_efficient: bool = False,
+                 groups: int = 1,
+                 l1_decay: float = 0.0,
+                 degree: int = 3,
+                 **norm_kwargs
+                 ):
+        conv1x1x1_fun = partial(bottleneck_kagn_conv1x1, degree=degree, l1_decay=l1_decay, **norm_kwargs)
+        conv3x3x3_fun = partial(bottleneck_kagn_conv3x3, degree=degree, l1_decay=l1_decay, groups=groups, **norm_kwargs)
+
+        super(_BottleNeckKAGNDenseBlock, self).__init__(conv1x1x1_fun,
+                                                        conv3x3x3_fun,
+                                                        num_layers,
+                                                        num_input_features,
+                                                        bn_size,
+                                                        growth_rate,
+                                                        dropout,
+                                                        memory_efficient=memory_efficient)
+
+
 class _Transition(nn.Sequential):
     # switch to KAN Convs?
     def __init__(self, num_input_features: int, num_output_features: int) -> None:
@@ -269,7 +296,8 @@ class DenseKANet(nn.Module):
     def __init__(
             self,
             block_class: Type[Union[_KANDenseBlock, _FastKANDenseBlock,
-                                    _KALNDenseBlock, _KACNDenseBlock, _KAGNDenseBlock]],
+                                    _KALNDenseBlock, _KACNDenseBlock, _KAGNDenseBlock,
+                                    _BottleNeckKAGNDenseBlock]],
             use_first_maxpool: bool = True,
             mp_kernel_size: int = 3, mp_stride: int = 2, mp_padding: int = 1,
             fcnv_kernel_size: int = 7, fcnv_stride: int = 2, fcnv_padding: int = 3,
@@ -279,6 +307,7 @@ class DenseKANet(nn.Module):
             num_init_features: int = 64,
             bn_size: int = 4,
             dropout: float = 0,
+            dropout_linear: float = 0,
             num_classes: int = 1000,
             memory_efficient: bool = False,
             **kan_kwargs
@@ -305,6 +334,9 @@ class DenseKANet(nn.Module):
         elif block_class in (_KAGNDenseBlock,):
             conv1 = KAGNConv2DLayer(input_channels, num_init_features, kernel_size=fcnv_kernel_size,
                                     stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
+        elif block_class in (_BottleNeckKAGNDenseBlock,):
+            conv1 = BottleNeckKAGNConv2DLayer(input_channels, num_init_features, kernel_size=fcnv_kernel_size,
+                                              stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
         elif block_class in (_KACNDenseBlock,):
             conv1 = KACNConv2DLayer(input_channels, num_init_features, kernel_size=fcnv_kernel_size,
                                     stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
@@ -341,12 +373,17 @@ class DenseKANet(nn.Module):
         # self.features.add_module("norm5", nn.BatchNorm2d(num_features))
 
         # Linear layer
+        self.dropout_lin = None
+        if dropout_linear > 0:
+            self.dropout_lin = nn.Dropout(p=dropout_linear)
         self.classifier = nn.Linear(num_features, num_classes)
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         features = self.features(x)
         out = F.adaptive_avg_pool2d(features, (1, 1))
         out = torch.flatten(out, 1)
+        if self.dropout_lin is not None:
+            out = self.dropout_lin(out)
         out = self.classifier(out)
         return out
 
@@ -370,7 +407,7 @@ class TinyDenseKANet(nn.Module):
     def __init__(
             self,
             block_class: Type[Union[_KANDenseBlock, _FastKANDenseBlock,
-                                    _KALNDenseBlock, _KACNDenseBlock, _KAGNDenseBlock]],
+                                    _KALNDenseBlock, _KACNDenseBlock, _KAGNDenseBlock, _BottleNeckKAGNDenseBlock]],
             fcnv_kernel_size: int = 5, fcnv_stride: int = 2, fcnv_padding: int = 2,
             input_channels: int = 3,
             growth_rate: int = 32,
@@ -378,6 +415,7 @@ class TinyDenseKANet(nn.Module):
             num_init_features: int = 64,
             bn_size: int = 4,
             dropout: float = 0,
+            dropout_linear: float = 0,
             num_classes: int = 1000,
             memory_efficient: bool = False,
             **kan_kwargs
@@ -403,6 +441,10 @@ class TinyDenseKANet(nn.Module):
         elif block_class in (_KAGNDenseBlock,):
             conv1 = KAGNConv2DLayer(input_channels, num_init_features, kernel_size=fcnv_kernel_size,
                                     stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
+
+        elif block_class in (_BottleNeckKAGNDenseBlock,):
+            conv1 = BottleNeckKAGNConv2DLayer(input_channels, num_init_features, kernel_size=fcnv_kernel_size,
+                                              stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
         elif block_class in (_KACNDenseBlock,):
             conv1 = KACNConv2DLayer(input_channels, num_init_features, kernel_size=fcnv_kernel_size,
                                     stride=fcnv_stride, padding=fcnv_padding, **kan_kwargs_clean)
@@ -433,6 +475,9 @@ class TinyDenseKANet(nn.Module):
 
         # # Final batch norm
 
+        self.dropout_lin = None
+        if dropout_linear > 0:
+            self.dropout_lin = nn.Dropout(p=dropout_linear)
         # Linear layer
         if block_class in (_KANDenseBlock,):
             self.classifier = KAN([num_features, num_classes], **kan_kwargs_clean)
@@ -443,6 +488,8 @@ class TinyDenseKANet(nn.Module):
             self.classifier = KALN([num_features, num_classes], **kan_kwargs_clean)
         elif block_class in (_KAGNDenseBlock,):
             self.classifier = KAGN([num_features, num_classes], **kan_kwargs_clean)
+        elif block_class in (_BottleNeckKAGNDenseBlock,):
+            self.classifier = BottleNeckKAGN([num_features, num_classes], **kan_kwargs_clean)
         elif block_class in (_KACNDenseBlock,):
             self.classifier = KACN([num_features, num_classes], **kan_kwargs_clean)
         else:
@@ -452,6 +499,8 @@ class TinyDenseKANet(nn.Module):
         x = self.features(x)
         x = F.adaptive_avg_pool2d(x, (1, 1))
         x = torch.flatten(x, 1)
+        if self.dropout_lin is not None:
+            x = self.dropout_lin(x)
         x = self.classifier(x)
         return x
 
@@ -466,7 +515,7 @@ def tiny_densekanet(input_channels, num_classes, groups: int = 1, spline_order: 
                           groups=groups, spline_order=spline_order, grid_size=grid_size,
                           base_activation=base_activation, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, memory_efficient=True,
-                      norm_layer=norm_layer)
+                          norm_layer=norm_layer)
 
 
 def tiny_fast_densekanet(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
@@ -478,7 +527,7 @@ def tiny_fast_densekanet(input_channels, num_classes, groups: int = 1, grid_size
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
                           groups=groups, grid_size=grid_size, base_activation=base_activation, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, grid_range=grid_range, memory_efficient=True,
-                      norm_layer=norm_layer)
+                          norm_layer=norm_layer)
 
 
 def tiny_densekalnet(input_channels, num_classes, groups: int = 1, degree: int = 3,
@@ -489,7 +538,7 @@ def tiny_densekalnet(input_channels, num_classes, groups: int = 1, degree: int =
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
                           groups=groups, degree=degree, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, memory_efficient=True,
-                      norm_layer=norm_layer
+                          norm_layer=norm_layer
                           )
 
 
@@ -501,7 +550,19 @@ def tiny_densekagnet(input_channels, num_classes, groups: int = 1, degree: int =
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
                           groups=groups, degree=degree, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, memory_efficient=True,
-                      norm_layer=norm_layer
+                          norm_layer=norm_layer
+                          )
+
+
+def tiny_densekagnet_bn(input_channels, num_classes, groups: int = 1, degree: int = 3,
+                     dropout: float = 0.0, l1_decay: float = 0.0,
+                     growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
+                     norm_layer: nn.Module = nn.InstanceNorm2d) -> TinyDenseKANet:
+    return TinyDenseKANet(_BottleNeckKAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
+                          growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
+                          groups=groups, degree=degree, affine=affine,
+                          dropout=dropout, l1_decay=l1_decay, memory_efficient=True,
+                          norm_layer=norm_layer
                           )
 
 
@@ -513,7 +574,7 @@ def tiny_densekacnet(input_channels, num_classes, groups: int = 1, degree: int =
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
                           groups=groups, degree=degree, affine=affine,
                           dropout=dropout, l1_decay=l1_decay, memory_efficient=True,
-                      norm_layer=norm_layer
+                          norm_layer=norm_layer
                           )
 
 
@@ -533,11 +594,11 @@ def densekanet121(input_channels, num_classes, groups: int = 1, spline_order: in
 
 
 def fast_densekanet121(input_channels, num_classes, groups: int = 1, grid_size: int = 5,
-                  base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
-                  grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
-                  use_first_maxpool: bool = True,
-                  growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
-                  norm_layer: nn.Module = nn.InstanceNorm2d) -> DenseKANet:
+                       base_activation: Optional[Callable[..., nn.Module]] = nn.GELU,
+                       grid_range: List = [-1, 1], dropout: float = 0.0, l1_decay: float = 0.0,
+                       use_first_maxpool: bool = True,
+                       growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
+                       norm_layer: nn.Module = nn.InstanceNorm2d) -> DenseKANet:
     return DenseKANet(_FastKANDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
                       groups=groups, grid_size=grid_size, base_activation=base_activation, affine=affine,
@@ -647,6 +708,54 @@ def densekagnet201(input_channels, num_classes, groups: int = 1, degree: int = 3
                    growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
                    norm_layer: nn.Module = nn.InstanceNorm2d) -> DenseKANet:
     return DenseKANet(_KAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
+                      growth_rate=growth_rate, block_config=(6, 12, 48, 32), num_init_features=num_init_features,
+                      groups=groups, degree=degree, affine=affine,
+                      dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool,
+                      norm_layer=norm_layer
+                      )
+
+
+def densekagnet121bn(input_channels, num_classes, groups: int = 1, degree: int = 3,
+                   dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
+                   growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
+                   norm_layer: nn.Module = nn.BatchNorm2d) -> DenseKANet:
+    return DenseKANet(_BottleNeckKAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
+                      growth_rate=growth_rate, block_config=(6, 12, 24, 16), num_init_features=num_init_features,
+                      groups=groups, degree=degree, affine=affine,
+                      dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool,
+                      norm_layer=norm_layer
+                      )
+
+
+def densekagnet161bn(input_channels, num_classes, groups: int = 1, degree: int = 3,
+                     dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
+                     growth_rate: int = 48, num_init_features: int = 64, affine: bool = True,
+                     norm_layer: nn.Module = nn.BatchNorm2d) -> DenseKANet:
+    return DenseKANet(_BottleNeckKAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
+                      growth_rate=growth_rate, block_config=(6, 12, 36, 24), num_init_features=num_init_features,
+                      groups=groups, degree=degree, affine=affine,
+                      dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool,
+                      norm_layer=norm_layer
+                      )
+
+
+def densekagnet169bn(input_channels, num_classes, groups: int = 1, degree: int = 3,
+                     dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
+                     growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
+                     norm_layer: nn.Module = nn.BatchNorm2d) -> DenseKANet:
+    return DenseKANet(_BottleNeckKAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
+                      growth_rate=growth_rate, block_config=(6, 12, 32, 32), num_init_features=num_init_features,
+                      groups=groups, degree=degree, affine=affine,
+                      dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool,
+                      norm_layer=norm_layer
+                      )
+
+
+def densekagnet201bn(input_channels, num_classes, groups: int = 1, degree: int = 3,
+                     dropout: float = 0.0, l1_decay: float = 0.0, use_first_maxpool: bool = True,
+                     growth_rate: int = 32, num_init_features: int = 64, affine: bool = True,
+                     norm_layer: nn.Module = nn.BatchNorm2d) -> DenseKANet:
+    return DenseKANet(_BottleNeckKAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                       growth_rate=growth_rate, block_config=(6, 12, 48, 32), num_init_features=num_init_features,
                       groups=groups, degree=degree, affine=affine,
                       dropout=dropout, l1_decay=l1_decay, use_first_maxpool=use_first_maxpool,
