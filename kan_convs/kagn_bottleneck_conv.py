@@ -213,7 +213,7 @@ class KAGNExpert(nn.Module):
         if output_dim % groups != 0:
             raise ValueError('output_dim must be divisible by groups')
 
-        poly_shape = (groups, input_dim // groups, self.outdim * (degree + 1) // groups) + tuple(
+        poly_shape = (groups, self.outdim // groups, self.inputdim * (degree + 1) // groups) + tuple(
             kernel_size for _ in range(ndim))
 
         self.poly_weights = nn.Parameter(torch.randn(*poly_shape))
