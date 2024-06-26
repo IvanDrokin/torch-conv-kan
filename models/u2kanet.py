@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .model_utils import kan_conv3x3, kagn_conv3x3, kacn_conv3x3, kaln_conv3x3, fast_kan_conv3x3, conv3x3, \
-    bottleneck_kagn_conv3x3
+    bottleneck_kagn_conv3x3, bottleneck_kagn_conv1x1
 
 
 def _upsample_like(src, tar):
@@ -423,6 +423,19 @@ def u2kagnet_small(input_channels, num_classes, groups: int = 1, degree: int = 3
     conf_fun_first = partial(kagn_conv3x3, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay, affine=affine,
                              norm_layer=norm_layer)
 
+    return U2KANetSmall(conf_fun, conf_fun_first=conf_fun_first,
+                        in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
+
+
+def u2kagnet_bn_small(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
+                      dropout: float = 0.0, l1_decay: float = 0.0,
+                      affine: bool = True, norm_layer: nn.Module = nn.InstanceNorm2d):
+    conf_fun = partial(bottleneck_kagn_conv3x3, degree=degree, groups=groups, dropout=dropout, l1_decay=l1_decay,
+                       affine=affine,
+                       norm_layer=norm_layer)
+    conf_fun_first = partial(bottleneck_kagn_conv1x1, degree=degree, groups=1, dropout=dropout, l1_decay=l1_decay,
+                             affine=affine,
+                             norm_layer=norm_layer)
     return U2KANetSmall(conf_fun, conf_fun_first=conf_fun_first,
                         in_ch=input_channels, out_ch=num_classes, width_factor=width_scale)
 

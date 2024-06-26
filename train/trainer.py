@@ -224,7 +224,8 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
         metric_acc = partial(accuracy, task="multiclass", top_k=1, num_classes=cfg.model.num_classes)
         metric_acc_top5 = partial(accuracy, task="multiclass", top_k=5, num_classes=cfg.model.num_classes)
         metric_acc, metric_acc_top5 = accelerator.prepare(metric_acc, metric_acc_top5)
-    if cfg.metrics.report_type == 'segmentation':
+
+    if cfg.metrics.report_type in ['segmentation', 'med_segmentation']:
         dice_metric = Dice()
         dice_metric = accelerator.prepare(dice_metric)
 
@@ -321,7 +322,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
                         additional_metrics = {"train_acc": acc.detach().item(),
                                               "train_acc_top5": acc_t5.detach().item()}
-                    if cfg.metrics.report_type == 'segmentation':
+                    if cfg.metrics.report_type in ['segmentation', 'med_segmentation']:
                         if isinstance(output, tuple):
                             model_out = output[0]
                         else:
@@ -387,7 +388,8 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
                     additional_metrics = {"train_acc": acc.detach().item(),
                                           "train_acc_top5": acc_t5.detach().item()}
-                if cfg.metrics.report_type == 'segmentation':
+
+                if cfg.metrics.report_type in ['segmentation', 'med_segmentation']:
                     if isinstance(output, tuple):
                         model_out = output[0]
                     else:

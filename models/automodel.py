@@ -5,6 +5,7 @@ from huggingface_hub import PyTorchModelHubMixin
 
 from .densekanet import densekalnet161, densekalnet169, densekalnet201, densekagnet161, densekagnet169, densekagnet201
 from .densekanet import densekanet121, densekagnet121, densekacnet121, fast_densekanet121, densekalnet121
+from .densekanet import tiny_densekagnet_bn, tiny_densekagnet_moebn
 from .reskanet import reskagnet18, reskagnet50, reskagnet101, reskagnet152
 from .u2kanet import u2kagnet, u2kacnet, u2kalnet, u2kanet, fast_u2kanet
 from .u2kanet import u2kagnet_small, u2kacnet_small, u2kalnet_small, u2kanet_small, fast_u2kanet_small
@@ -153,7 +154,8 @@ class AutoKAN(PyTorchModelHubMixin):
                                             base_activation=get_activation_from_string(
                                                 kwargs.pop("base_activation", 'gelu')),
                                             affine=kwargs.pop('affine', True),
-                                            norm_layer=get_norm_layer_from_string(kwargs.pop('norm_layer', 'instance2d')))
+                                            norm_layer=get_norm_layer_from_string(
+                                                kwargs.pop('norm_layer', 'instance2d')))
         # DenseNets ===========
 
         elif model_name == "densekanet121":
@@ -381,7 +383,23 @@ class TinyAutoKAGN(PyTorchModelHubMixin):
             pass
 
         if model_type == 'DenseNet':
-            pass
+            growth_rate = kwargs.pop('growth_rate', 32)
+            num_init_features = kwargs.pop('num_init_features', 64)
+            if is_moe:
+                self.model = tiny_densekagnet_moebn(input_channels, num_classes,
+                                                    groups=groups, degree=degree, dropout=dropout,
+                                                    dropout_linear=dropout_linear, l1_decay=l1_decay,
+                                                    growth_rate=growth_rate, num_init_features=num_init_features,
+                                                    affine=affine,
+                                                    norm_layer=norm_layer,
+                                                    num_experts=num_experts, noisy_gating=noisy_gating, k=k)
+            else:
+                self.model = tiny_densekagnet_bn(input_channels, num_classes,
+                                                 groups=groups, degree=degree, dropout=dropout,
+                                                 dropout_linear=dropout_linear, l1_decay=l1_decay,
+                                                 growth_rate=growth_rate, num_init_features=num_init_features,
+                                                 affine=affine,
+                                                 norm_layer=norm_layer)
 
     def __call__(self, *args, **kwargs):
         return self.model.__call__(*args, **kwargs)

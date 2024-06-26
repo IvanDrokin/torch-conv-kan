@@ -136,7 +136,7 @@ def self_kagn_conv3x3(in_planes: int, inner_projection: int = None, degree: int 
 
 
 def bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
-                            dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                            dilation: int = 1, dropout: float = 0.0, norm_layer=nn.BatchNorm2d,
                             l1_decay: float = 0.0, dim_reduction: float = 8,
                             **norm_kwargs) -> BottleNeckKAGNConv2DLayer:
     """3x3 convolution with padding"""
@@ -160,7 +160,7 @@ def bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, gr
 
 
 def moe_bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3, groups: int = 1, stride: int = 1,
-                            dilation: int = 1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                            dilation: int = 1, dropout: float = 0.0, norm_layer=nn.BatchNorm2d,
                             l1_decay: float = 0.0, dim_reduction: float = 8,
                             num_experts: int = 8, noisy_gating: bool = True, k: int = 2,
                             **norm_kwargs) -> MoEBottleNeckKAGNConv2DLayer:
@@ -188,7 +188,7 @@ def moe_bottleneck_kagn_conv3x3(in_planes: int, out_planes: int, degree: int = 3
 
 
 def bottleneck_kagn_conv1x1(in_planes: int, out_planes: int, degree: int = 3, stride: int = 1,
-                            dropout: float = 0.0, norm_layer=nn.InstanceNorm2d,
+                            dropout: float = 0.0, norm_layer=nn.BatchNorm2d,
                             l1_decay: float = 0.0, **norm_kwargs) -> KAGNConv2DLayer:
     """1x1 convolution"""
     conv = BottleNeckKAGNConv2DLayer(in_planes, out_planes, degree=degree,

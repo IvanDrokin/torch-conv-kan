@@ -658,7 +658,7 @@ def tiny_densekagnet_moebn(input_channels, num_classes, groups: int = 1, degree:
     return TinyDenseKANet(_MoEBottleNeckKAGNDenseBlock, input_channels=input_channels, num_classes=num_classes,
                           growth_rate=growth_rate, block_config=(5, 5, 5), num_init_features=num_init_features,
                           groups=groups, degree=degree, affine=affine,
-                          dropout=dropout, l1_decay=l1_decay, memory_efficient=True,
+                          dropout=dropout, l1_decay=l1_decay, memory_efficient=False,
                           norm_layer=norm_layer, noisy_gating=noisy_gating, k=k, num_experts=num_experts,
                           dropout_linear=dropout_linear
                           )
