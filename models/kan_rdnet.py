@@ -49,13 +49,14 @@ class RDNetClassifierHead(nn.Module):
 
 class PatchifyStem(nn.Module):
     def __init__(self, num_input_channels, num_init_features, patch_size=4,
-                 is_bottleneck: bool = True, degree: int = 3, dropout: float = 0):
+                 is_bottleneck: bool = True, degree: int = 3, dropout: float = 0.0,
+                 norm_layer=LayerNorm2d):
         super().__init__()
 
         layer = BottleNeckKAGNConv2DLayer if is_bottleneck else KAGNConv2DLayer
         self.stem = nn.Sequential(
             layer(num_input_channels, num_init_features, kernel_size=patch_size, stride=patch_size, degree=degree,
-                  norm_layer=LayerNorm2d, dropout=dropout),
+                  norm_layer=norm_layer, dropout=dropout),
         )
 
     def forward(self, x):
@@ -65,17 +66,18 @@ class PatchifyStem(nn.Module):
 class Block(nn.Module):
     """D == Dw conv, N == Norm, F == Feed Forward, A == Activation"""
 
-    def __init__(self, in_chs, inter_chs, out_chs, is_bottleneck: bool = True, degree: int = 3, dropout: float = 0):
+    def __init__(self, in_chs, inter_chs, out_chs, is_bottleneck: bool = True, degree: int = 3, dropout: float = 0,
+                 norm_layer=LayerNorm2d):
         super().__init__()
         layer = BottleNeckKAGNConv2DLayer if is_bottleneck else KAGNConv2DLayer
         self.layers = nn.Sequential(
             KAGNConv2DLayerV2(in_chs, in_chs, groups=in_chs, kernel_size=7, stride=1, padding=3,
-                              norm_layer=LayerNorm2d, degree=degree, dropout=dropout),
+                              norm_layer=norm_layer, degree=degree, dropout=dropout),
 
             layer(in_chs, inter_chs, kernel_size=1, stride=1, padding=0,
-                  norm_layer=LayerNorm2d, degree=degree, dropout=dropout),
+                  norm_layer=norm_layer, degree=degree, dropout=dropout),
             layer(inter_chs, out_chs, kernel_size=1, stride=1, padding=0,
-                  norm_layer=LayerNorm2d, degree=degree, dropout=dropout),
+                  norm_layer=norm_layer, degree=degree, dropout=dropout),
         )
 
     def forward(self, x):
@@ -88,12 +90,13 @@ class EffectiveSEModule(nn.Module):
     """
 
     def __init__(self, channels, add_maxpool=False, gate_layer='hard_sigmoid',
-                 is_bottleneck: bool = True, degree: int = 3, dropout: float = 0):
+                 is_bottleneck: bool = True, degree: int = 3, dropout: float = 0,
+                 norm_layer=LayerNorm2d):
         super(EffectiveSEModule, self).__init__()
         self.add_maxpool = add_maxpool
         layer = BottleNeckKAGNConv2DLayer if is_bottleneck else KAGNConv2DLayer
         self.fc = layer(channels, channels, kernel_size=1, padding=0, degree=degree, dropout=dropout,
-                        norm_layer=LayerNorm2d)
+                        norm_layer=norm_layer)
         self.gate = create_act_layer(gate_layer)
 
     def forward(self, x):
@@ -109,17 +112,18 @@ class BlockESE(nn.Module):
     """D == Dw conv, N == Norm, F == Feed Forward, A == Activation"""
 
     def __init__(self, in_chs, inter_chs, out_chs,
-                 is_bottleneck: bool = True, degree: int = 3, dropout: float = 0):
+                 is_bottleneck: bool = True, degree: int = 3, dropout: float = 0, norm_layer=LayerNorm2d):
         super().__init__()
         layer = BottleNeckKAGNConv2DLayer if is_bottleneck else KAGNConv2DLayer
         self.layers = nn.Sequential(
             KAGNConv2DLayerV2(in_chs, in_chs, groups=in_chs, kernel_size=7, stride=1, padding=3, degree=degree, dropout=dropout,
-                  norm_layer=LayerNorm2d),
+                  norm_layer=norm_layer),
             layer(in_chs, inter_chs, kernel_size=1, stride=1, padding=0, degree=degree, dropout=dropout,
-                  norm_layer=LayerNorm2d),
+                  norm_layer=norm_layer),
             layer(inter_chs, out_chs, kernel_size=1, stride=1, padding=0, degree=degree, dropout=dropout,
-                  norm_layer=LayerNorm2d),
-            EffectiveSEModule(out_chs),
+                  norm_layer=norm_layer),
+            EffectiveSEModule(out_chs, is_bottleneck=is_bottleneck, norm_layer=norm_layer, degree=degree,
+                              dropout=dropout),
         )
 
     def forward(self, x):
@@ -141,6 +145,7 @@ class DenseBlock(nn.Module):
             is_bottleneck: bool = True,
             degree: int = 3,
             dropout: float = 0,
+            norm_layer=LayerNorm2d,
             **kwargs,
     ):
         super().__init__()
@@ -160,7 +165,8 @@ class DenseBlock(nn.Module):
             out_chs=growth_rate,
             is_bottleneck=is_bottleneck,
             degree=degree,
-            dropout=dropout
+            dropout=dropout,
+            norm_layer=norm_layer
         )
 
     def forward(self, x):
@@ -220,6 +226,7 @@ class KAGNRDNet(nn.Module):
             degree: int = 3,
             dropout: float = 0,
             patch_size: int = 4,
+            norm_layer=LayerNorm2d,
             **kwargs,
     ):
         super().__init__()
@@ -233,7 +240,7 @@ class KAGNRDNet(nn.Module):
             block_type = [block_type] * len(growth_rates)
 
         # stem
-        self.stem = PatchifyStem(in_chans, num_init_features, patch_size=patch_size)
+        self.stem = PatchifyStem(in_chans, num_init_features, patch_size=patch_size, norm_layer=norm_layer)
 
         # features
         self.feature_info = []
@@ -253,7 +260,7 @@ class KAGNRDNet(nn.Module):
                     k_size = stride = 2
                 dense_stage_layers.append(
                     layer(num_features, compressed_num_features, kernel_size=k_size, stride=stride, padding=0,
-                          degree=degree, dropout=dropout, norm_layer=LayerNorm2d)
+                          degree=degree, dropout=dropout, norm_layer=norm_layer)
                 )
                 num_features = compressed_num_features
 
@@ -268,7 +275,8 @@ class KAGNRDNet(nn.Module):
                 block_type=block_type[i],
                 degree=degree,
                 is_bottleneck=is_bottleneck,
-                dropout=dropout
+                dropout=dropout,
+                norm_layer=norm_layer
             )
             dense_stage_layers.append(stage)
             num_features += num_blocks_list[i] * growth_rates[i]
@@ -289,7 +297,7 @@ class KAGNRDNet(nn.Module):
 
                 dense_stages.append(att_layer(
                     _input_dim, inner_projection=inner_projection, kernel_size=3, degree=degree, groups=1,
-                    padding=1, stride=1, dilation=1, dropout=dropout, norm_layer=LayerNorm2d
+                    padding=1, stride=1, dilation=1, dropout=dropout, norm_layer=norm_layer
                 ))
         self.dense_stages = nn.Sequential(*dense_stages)
 
@@ -351,7 +359,8 @@ def kagrdnet_tiny(in_channels: int = 3, num_classes: int = 1000, is_bottleneck: 
                   dropout: float = 0, dropout_linear: float = 0,
                   drop_path_rate: float = 0, patch_size: int = 4,
                   post_block_attention: bool = False,
-                  inner_projection_attention_scale: float = 1):
+                  inner_projection_attention_scale: float = 1,
+                  norm_layer=LayerNorm2d):
     model = KAGNRDNet(num_init_features=32,
                       growth_rates=(32, 52, 64, 64, 64, 64, 112),
                       num_blocks_list=(3, 3, 3, 3, 3, 3, 3),
@@ -373,7 +382,8 @@ def kagrdnet_tiny(in_channels: int = 3, num_classes: int = 1000, is_bottleneck: 
                       dropout=dropout,
                       patch_size=patch_size,
                       post_block_attention=post_block_attention,
-                      inner_projection_attention_scale=inner_projection_attention_scale
+                      inner_projection_attention_scale=inner_projection_attention_scale,
+                      norm_layer=norm_layer
                       )
     return model
 
@@ -382,7 +392,8 @@ def kagrdnet_small(in_channels: int = 3, num_classes: int = 1000, is_bottleneck:
                    dropout: float = 0, dropout_linear: float = 0,
                    drop_path_rate: float = 0, patch_size: int = 4,
                    post_block_attention: bool = False,
-                   inner_projection_attention_scale: float = 1):
+                   inner_projection_attention_scale: float = 1,
+                   norm_layer=LayerNorm2d):
     n_layer = 11
     model = KAGNRDNet(num_init_features=72,
                       growth_rates=[64] + [128] + [128] * (n_layer - 4) + [240] * 2,
@@ -404,7 +415,8 @@ def kagrdnet_small(in_channels: int = 3, num_classes: int = 1000, is_bottleneck:
                       dropout=dropout,
                       patch_size=patch_size,
                       post_block_attention=post_block_attention,
-                      inner_projection_attention_scale=inner_projection_attention_scale
+                      inner_projection_attention_scale=inner_projection_attention_scale,
+                      norm_layer=norm_layer
                       )
     return model
 
@@ -413,7 +425,8 @@ def kagrdnet_base(in_channels: int = 3, num_classes: int = 1000, is_bottleneck: 
                   dropout: float = 0, dropout_linear: float = 0,
                   drop_path_rate: float = 0, patch_size: int = 4,
                   post_block_attention: bool = False,
-                  inner_projection_attention_scale: float = 1):
+                  inner_projection_attention_scale: float = 1,
+                  norm_layer=LayerNorm2d):
     n_layer = 11
     model = KAGNRDNet(num_init_features=120,
                       growth_rates=[96] + [128] + [168] * (n_layer - 4) + [336] * 2,
@@ -435,7 +448,8 @@ def kagrdnet_base(in_channels: int = 3, num_classes: int = 1000, is_bottleneck: 
                       dropout=dropout,
                       patch_size=patch_size,
                       post_block_attention=post_block_attention,
-                      inner_projection_attention_scale=inner_projection_attention_scale
+                      inner_projection_attention_scale=inner_projection_attention_scale,
+                      norm_layer=norm_layer
                       )
     return model
 
@@ -444,7 +458,8 @@ def kagrdnet_large(in_channels: int = 3, num_classes: int = 1000, is_bottleneck:
                    dropout: float = 0, dropout_linear: float = 0,
                    drop_path_rate: float = 0, patch_size: int = 4,
                    post_block_attention: bool = False,
-                   inner_projection_attention_scale: float = 1):
+                   inner_projection_attention_scale: float = 1,
+                   norm_layer=LayerNorm2d):
     n_layer = 12
     model = KAGNRDNet(num_init_features=144,
                       growth_rates=[128] + [192] + [256] * (n_layer - 4) + [360] * 2,
@@ -467,6 +482,7 @@ def kagrdnet_large(in_channels: int = 3, num_classes: int = 1000, is_bottleneck:
                       dropout=dropout,
                       patch_size=patch_size,
                       post_block_attention=post_block_attention,
-                      inner_projection_attention_scale=inner_projection_attention_scale
+                      inner_projection_attention_scale=inner_projection_attention_scale,
+                      norm_layer=norm_layer
                       )
     return model
