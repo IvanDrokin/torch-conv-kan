@@ -1,12 +1,15 @@
-from functools import partial
 from copy import deepcopy
+from functools import partial
 from typing import Callable, Optional, List, Type, Union
 
 import torch
 import torch.nn as nn
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, BottleNeckKAGNConv2DLayer
-from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1, bottleneck_kagn_conv1x1
+from kan_convs import BottleNeckKAGNConv2DLayer, KAGNFocalModulation2D, BottleNeckKAGNFocalModulation2D
+from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
+from kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
+from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1, \
+    bottleneck_kagn_conv1x1
 from .reskanet import KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KANBottleneck, \
     FastKANBottleneck, KALNBottleneck, KACNBottleneck, KAGNBottleneck, KAGNBasicBlock, BottleneckKAGNBasicBlock
 
@@ -95,18 +98,18 @@ class UKANet(nn.Module):
             self.merge3 = KAGNConv2DLayer((32 + 64) * width_scale * block.expansion,
                                           32 * width_scale * block.expansion, kernel_size=3,
                                           groups=groups, stride=1, padding=1, **clean_params)
-        elif block in (BottleneckKAGNBasicBlock, ):
+        elif block in (BottleneckKAGNBasicBlock,):
             self.conv1 = BottleNeckKAGNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
-                                         stride=fcnv_stride, padding=fcnv_padding, **clean_params)
+                                                   stride=fcnv_stride, padding=fcnv_padding, **clean_params)
             self.merge1 = BottleNeckKAGNConv2DLayer((8 + 16) * width_scale * block.expansion,
-                                          8 * width_scale * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **clean_params)
+                                                    8 * width_scale * block.expansion, kernel_size=3,
+                                                    groups=groups, stride=1, padding=1, **clean_params)
             self.merge2 = BottleNeckKAGNConv2DLayer((32 + 16) * width_scale * block.expansion,
-                                          16 * width_scale * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **clean_params)
+                                                    16 * width_scale * block.expansion, kernel_size=3,
+                                                    groups=groups, stride=1, padding=1, **clean_params)
             self.merge3 = BottleNeckKAGNConv2DLayer((32 + 64) * width_scale * block.expansion,
-                                          32 * width_scale * block.expansion, kernel_size=3,
-                                          groups=groups, stride=1, padding=1, **clean_params)
+                                                    32 * width_scale * block.expansion, kernel_size=3,
+                                                    groups=groups, stride=1, padding=1, **clean_params)
         elif block in (KACNBasicBlock, KACNBottleneck):
             self.conv1 = KACNConv2DLayer(input_channels, self.inplanes, kernel_size=fcnv_kernel_size,
                                          stride=fcnv_stride, padding=fcnv_padding, **clean_params)
@@ -144,7 +147,7 @@ class UKANet(nn.Module):
         self.inplanes = l3e_inplanes
         self.layer3d = self._make_layer(block, 32 * block.expansion * width_scale, layers[2], **kan_kwargs)
 
-        self.output = nn.Conv2d(8 * block.expansion  * width_scale, num_classes, kernel_size=1, padding=0, stride=1)
+        self.output = nn.Conv2d(8 * block.expansion * width_scale, num_classes, kernel_size=1, padding=0, stride=1)
 
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
 
@@ -172,7 +175,7 @@ class UKANet(nn.Module):
                 conv1x1 = partial(kaln_conv1x1, **kan_kwargs)
             elif block in (KAGNBasicBlock, KAGNBottleneck):
                 conv1x1 = partial(kagn_conv1x1, **kan_kwargs)
-            elif block in (BottleneckKAGNBasicBlock, ):
+            elif block in (BottleneckKAGNBasicBlock,):
                 conv1x1 = partial(bottleneck_kagn_conv1x1, **kan_kwargs)
             elif block in (KACNBasicBlock, KACNBottleneck):
                 conv1x1 = partial(kacn_conv1x1, **kan_kwargs)
@@ -320,8 +323,8 @@ def ukacnet_18(input_channels, num_classes, groups: int = 1, degree: int = 3,
 
 
 def ukagnetnb_18(input_channels, num_classes, groups: int = 1, degree: int = 3, width_scale: int = 1,
-               affine: bool = True, dropout: float = 0., l1_decay: float = 0.,
-               norm_layer: nn.Module = nn.InstanceNorm2d):
+                 affine: bool = True, dropout: float = 0., l1_decay: float = 0.,
+                 norm_layer: nn.Module = nn.InstanceNorm2d):
     return UKANet(BottleneckKAGNBasicBlock, [2, 2, 2, 2],
                   input_channels=input_channels,
                   fcnv_kernel_size=3, fcnv_stride=1, fcnv_padding=1,
@@ -334,3 +337,180 @@ def ukagnetnb_18(input_channels, num_classes, groups: int = 1, degree: int = 3, 
                   norm_layer=norm_layer,
                   dropout=dropout,
                   l1_decay=l1_decay)
+
+
+class UKAGNet(nn.Module):
+    def __init__(self,
+                 input_channels: int = 3,
+                 num_classes: int = 1,
+                 unet_depth: int = 4,
+                 unet_layers: int = 2,
+                 groups: int = 1,
+                 width_scale: int = 1,
+                 use_bottleneck: bool = True,
+                 mixer_type: str = 'conv',
+                 degree: int = 3,
+                 affine: bool = True,
+                 dropout: float = 0.,
+                 norm_layer: nn.Module = nn.BatchNorm2d,
+                 inner_projection_attention: int = None,
+                 focal_window=3,
+                 focal_level=2,
+                 focal_factor=2,
+                 use_postln_in_modulation=True,
+                 normalize_modulator=True,
+                 full_kan: bool = True,
+                 ):
+        super(UKAGNet, self).__init__()
+        self.unet_depth = unet_depth
+        assert mixer_type in ['conv', 'self-att',
+                              'focal'], f'Unsupported mixer type {mixer_type}; Mut be one of: conv, self-att, focal'
+
+        attention = None
+        if use_bottleneck:
+            layer = BottleNeckKAGNConv2DLayer
+            if mixer_type == "self-att":
+                attention = BottleNeckSelfKAGNtention2D
+            if mixer_type == "focal":
+                attention = BottleNeckKAGNFocalModulation2D
+
+        else:
+            layer = KAGNConv2DLayer
+            if mixer_type == "self-att":
+                attention = SelfKAGNtention2D
+            if mixer_type == "focal":
+                attention = KAGNFocalModulation2D
+
+        self.encoder = nn.ModuleList()
+        self.decoder = nn.ModuleList()
+
+        for depth_index in range(unet_depth):
+            if depth_index == 0:
+                layer_list_enc = [
+                                     layer(input_channels, 16 * width_scale * 2 ** depth_index, 3,
+                                           degree=degree, groups=groups, padding=1,
+                                           stride=1, dilation=1, dropout=0, norm_layer=norm_layer, affine=affine),
+                                 ] + [layer(16 * width_scale * 2 ** depth_index, 16 * width_scale * 2 ** depth_index, 3,
+                                            degree=degree, groups=groups, padding=1,
+                                            stride=1,
+                                            dilation=1, dropout=dropout,
+                                            norm_layer=norm_layer, affine=affine) for _ in range(unet_layers - 1)]
+
+            else:
+                layer_list_enc = [
+                                     layer(16 * width_scale * 2 ** (depth_index - 1),
+                                           16 * width_scale * 2 ** depth_index, 3,
+                                           degree=degree, groups=groups, padding=1,
+                                           stride=2, dilation=1, dropout=dropout, norm_layer=norm_layer, affine=affine),
+                                 ] + [layer(16 * width_scale * 2 ** depth_index, 16 * width_scale * 2 ** depth_index, 3,
+                                            degree=degree, groups=groups, padding=1,
+                                            stride=1,
+                                            dilation=1, dropout=dropout,
+                                            norm_layer=norm_layer, affine=affine) for _ in
+                                      range(unet_layers - 1)]
+
+            self.encoder.append(nn.Sequential(*layer_list_enc))
+
+        for depth_index in reversed(range(0, unet_depth-1)):
+            if depth_index < unet_depth - 1:
+                if attention is not None:
+
+                    if mixer_type == "self-att":
+                        layer_list_dec = [
+                            attention(16 * 3 * width_scale * 2 ** depth_index, inner_projection_attention, kernel_size=3,
+                                      degree=degree, groups=groups, padding=1,
+                                      stride=1, dilation=1, norm_layer=norm_layer, affine=affine,
+
+                                      dropout=dropout),
+                        ]
+                    elif mixer_type == "focal":
+                        layer_list_dec = [
+                            attention(16 * 3 * width_scale * 2 ** depth_index,
+                                      degree=degree, dropout=dropout, norm_layer=norm_layer, affine=affine,
+                                      focal_window=focal_window,
+                                      focal_level=focal_level,
+                                      focal_factor=focal_factor,
+                                      use_postln_in_modulation=use_postln_in_modulation,
+                                      normalize_modulator=normalize_modulator,
+                                      full_kan=full_kan
+                                      ), ]
+                    else:
+                        layer_list_dec = []
+                else:
+                    layer_list_dec = []
+
+                layer_list_dec += [
+                                      layer(16 * 3 * width_scale * 2 ** depth_index,
+                                            16 * width_scale * 2 ** depth_index, 3,
+                                            degree=degree, groups=groups, padding=1,
+                                            stride=1, dilation=1, dropout=dropout, norm_layer=norm_layer,
+                                            affine=affine),
+                                  ] + [
+                                      layer(16 * width_scale * 2 ** depth_index, 16 * width_scale * 2 ** depth_index, 3,
+                                            degree=degree, groups=groups, padding=1,
+                                            stride=1,
+                                            dilation=1, dropout=dropout, norm_layer=norm_layer, affine=affine) for _ in
+                                      range(unet_layers - 1)]
+
+            else:
+                if attention is not None:
+
+                    if mixer_type == "self-att":
+                        layer_list_dec = [
+                            attention(16 * 3 * width_scale * 2 ** depth_index, inner_projection_attention,
+                                      kernel_size=3,
+                                      degree=degree, groups=groups, padding=1,
+                                      stride=1, dilation=1, norm_layer=norm_layer, affine=affine,
+                                      dropout=dropout),
+                        ]
+                    elif mixer_type == "focal":
+                        layer_list_dec = [
+                            attention(16 * 3 * width_scale * 2 ** depth_index,
+                                      degree=degree, dropout=dropout, norm_layer=norm_layer, affine=affine,
+                                      focal_window=focal_window,
+                                      focal_level=focal_level,
+                                      focal_factor=focal_factor,
+                                      use_postln_in_modulation=use_postln_in_modulation,
+                                      normalize_modulator=normalize_modulator,
+                                      full_kan=full_kan
+                                      ), ]
+                    else:
+                        layer_list_dec = []
+                else:
+                    layer_list_dec = []
+                layer_list_dec += [
+                                      layer(16 * 3 * width_scale * 2 ** depth_index,
+                                            16 * width_scale * 2 ** depth_index, 3,
+                                            degree=degree, groups=groups, padding=1,
+                                            stride=1, dilation=1, dropout=dropout, norm_layer=norm_layer,
+                                            affine=affine),
+                                  ] + [
+                                      layer(16 * width_scale * 2 ** depth_index, 16 * width_scale * 2 ** depth_index, 3,
+                                            degree=degree, groups=groups, padding=1,
+                                            stride=1,
+                                            dilation=1, dropout=dropout, norm_layer=norm_layer, affine=affine,
+
+                                            ) for _ in
+                                      range(unet_layers - 1)]
+
+            self.decoder.append(nn.Sequential(*layer_list_dec))
+            self.output = nn.Conv2d(16 * width_scale * 2 ** depth_index, num_classes, 1)
+
+            self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
+
+    def forward(self, x, **kwargs):
+
+        skips = []
+        for block_index, block in enumerate(self.encoder):
+            x = block(x)
+            if block_index < self.unet_depth - 1:
+                skips.append(x)
+
+        for block in self.decoder:
+            skip_x = skips.pop(-1)
+            x = self.upsample(x)
+            x = torch.concatenate([x, skip_x], dim=1)
+            x = block(x)
+
+        x = self.output(x)
+        return x

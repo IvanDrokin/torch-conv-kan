@@ -1,32 +1,34 @@
 import gc
-from functools import partial
 import logging
 import math
 import os
 import shutil
-from pathlib import Path
 from copy import deepcopy
+from functools import partial
+from pathlib import Path
 
 import accelerate
 import numpy as np
 import torch
 import torch.utils.checkpoint
-from lion_pytorch import Lion
-
+from torch.utils.data import default_collate
+from torchvision.transforms import v2
+import wandb
 from accelerate import Accelerator
 from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
+from lion_pytorch import Lion
 from packaging import version
 from torch.optim.lr_scheduler import LambdaLR
 from torchmetrics.functional import accuracy
 from tqdm.auto import tqdm
-import wandb
 
-from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer
-from .metrics import get_metrics
-from .losses import Dice
+from kan_convs import KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, \
+    WavKANConv2DLayer, BottleNeckKAGNConv2DLayer, MoEBottleNeckKAGNConv2DLayer
 from .lbfgs import LBFGS
+from .losses import Dice
+from .metrics import get_metrics
 
 logger = get_logger(__name__)
 
@@ -34,6 +36,7 @@ logger = get_logger(__name__)
 class OutputHook(list):
     """ Hook to capture module outputs.
     """
+
     def __call__(self, module, input, output):
         self.append(output)
 
@@ -177,11 +180,16 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                           line_search_fn="strong_wolfe"
                           )
 
+    cutmix = v2.CutMix(num_classes=cfg.model.num_classes)
+    mixup = v2.MixUp(num_classes=cfg.model.num_classes)
+    cutmix_or_mixup = v2.RandomChoice([cutmix, mixup])
+
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,
         shuffle=True,
         batch_size=cfg.train_batch_size,
         num_workers=cfg.dataloader_num_workers,
+        collate_fn=lambda _batch: cutmix_or_mixup(*default_collate(_batch)) if cfg.use_mixup else default_collate
     )
     val_dataloader = torch.utils.data.DataLoader(
         dataset_val,
@@ -217,7 +225,8 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
     output_hook = OutputHook()
     for module in model.modules():
         if isinstance(module, (KANConv2DLayer, KALNConv2DLayer, FastKANConv2DLayer,
-                               KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer)):
+                               KACNConv2DLayer, KAGNConv2DLayer, WavKANConv2DLayer,
+                               BottleNeckKAGNConv2DLayer, MoEBottleNeckKAGNConv2DLayer)):
             module.register_forward_hook(output_hook)
 
     if cfg.metrics.report_type == 'classification' or cfg.metrics.report_type == 'classification_minimum':
@@ -240,7 +249,6 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     cfg.max_train_steps = cfg.epochs * num_update_steps_per_epoch
-
 
     save_checkpoints = True
     if "save_checkpoints" in cfg:
@@ -341,6 +349,7 @@ def train_model(model, dataset_train, dataset_val, loss_func, cfg, dataset_test=
                     # optimizer.zero_grad(set_to_none=cfg.optim.set_grads_to_none)
                     output_hook.clear()
                     return loss
+
                 optimizer.step(closure)
                 lr_scheduler.step()
             else:
