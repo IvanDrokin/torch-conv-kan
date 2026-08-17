@@ -226,12 +226,15 @@ class ConvNeXtKAGNBlock(nn.Module):
     KAGN layer based on GRAM KAN:
         https://github.com/Khochawongwat/GRAMKAN
     """
-    def __init__(self, dim, degree=3, use_grn: bool = True, drop_path: float = 0.0):
+
+    def __init__(self, dim, degree=3, use_grn: bool = True, drop_path: float = 0.0,
+                 dropout: float = 0.0, norm_layer=nn.BatchNorm2d, **norm_kwargs):
         super().__init__()
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)
         self.norm = nn.LayerNorm(dim, eps=1e-6)
-        self.kagn = KAGNConv2DLayerV2(dim, dim, kernel_size=1, degree=degree,
-                                      use_grn=use_grn, norm_layer=nn.BatchNorm2d)
+        self.kagn = KAGNConv2DLayerV3(dim, dim, kernel_size=1, degree=degree,
+                                      use_grn=use_grn, dropout=dropout,
+                                      norm_layer=norm_layer, **norm_kwargs)
 
         if drop_path > 0.0 and DropPath is None:
             warnings.warn(

@@ -39,7 +39,7 @@ This project introduces and demonstrates the training, validation, and quantizat
 
 - ✅ [2024/07/09] PEFT code for KAGN models are released, as well as new RDNet-like models, better implementation of Kolmogorov-Arnold-Gram concolutions, and medical images segmentation scripts.
 
-- ✅ [2026/08/17] Introducing ConvNeXtKAGNBlock — a ConvNeXt V2-style block with a Gram KAN layer in place of the MLP — and KAGNConv(1,2,3)DLayerV3 with built-in GRN.
+- ✅ [2026/08/17] Introducing ConvNeXtKAGNBlock — a ConvNeXt V2-style block with a Gram KAN layer in place of the MLP — and KAGNConv(1,2,3)DLayerV3 with built-in GRN. Plus ConvNeXtKAGN model.
 
 ### TODO list and next steps
 

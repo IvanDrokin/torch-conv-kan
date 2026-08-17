@@ -28,3 +28,6 @@ from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn, moe_vggkagn,
 from .ukanet import UKAGNet
 
 from .vggkan import VGGKAGN_BN, VGGKAGN
+
+from .kagn_convnext import ConvNeXtKAGN, convnext_kagn_atto, convnext_kagn_tiny, convnext_kagn_base, convnext_kagn_huge, \
+    convnext_kagn_nano, convnext_kagn_pico, convnext_kagn_femto, convnext_kagn_large
