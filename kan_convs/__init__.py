@@ -29,3 +29,4 @@ from .relukan_bottleneck_conv import BottleNeckReLUKANConv1DLayer, BottleNeckReL
     BottleNeckReLUKANConv3DLayer
 from .relukan_conv import ReLUKANConv1DLayer, ReLUKANConv2DLayer, ReLUKANConv3DLayer
 from .wav_kan import WavKANConv1DLayer, WavKANConv2DLayer, WavKANConv3DLayer
+from .kagn_conv_v3 import ConvNeXtKAGNBlock, KAGNConv3DLayerV3, KAGNConv2DLayerV3, KAGNConv1DLayerV3
