@@ -19,7 +19,6 @@
 # and https://github.com/zavareh1/Wav-KAN
 # and https://github.com/SpaceLearner/JacobiKAN/blob/main/JacobiKANLayer.py
 import math
-from functools import lru_cache
 
 import torch
 import torch.nn as nn
@@ -118,7 +117,6 @@ class KALNLayer(nn.Module):  # Kolmogorov Arnold Legendre Network (KAL-Net)
         nn.init.kaiming_uniform_(self.base_weight, nonlinearity='linear')
         nn.init.kaiming_uniform_(self.poly_weight, nonlinearity='linear')
 
-    @lru_cache(maxsize=128)  # Cache to avoid recomputation of Legendre polynomials
     def compute_legendre_polynomials(self, x, order):
         # Base case polynomials P0 and P1
         P0 = x.new_ones(x.shape)  # P0 = 1 for all x
@@ -270,7 +268,6 @@ class GRAMLayer(nn.Module):
                        ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
                ) * self.beta_weights[n]
 
-    @lru_cache(maxsize=128)
     def gram_poly(self, x, degree):
         p0 = x.new_ones(x.size())
 
@@ -473,7 +470,6 @@ class BernsteinKANLayer(nn.Module):
         nn.init.normal_(self.bernstein_coeffs, mean=0.0, std=1 / (input_dim * (degree + 1)))
         nn.init.xavier_uniform_(self.base_weights)
 
-    @lru_cache(maxsize=128)
     def bernstein_poly(self, x, degree):
 
         bernsteins = torch.ones(x.shape + (self.degree + 1,), dtype=x.dtype, device=x.device)
@@ -589,7 +585,6 @@ class BottleNeckGRAMLayer(nn.Module):
                        ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
                ) * self.beta_weights[n]
 
-    @lru_cache(maxsize=128)
     def gram_poly(self, x, degree):
         p0 = x.new_ones(x.size())
 

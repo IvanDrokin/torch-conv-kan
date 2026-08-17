@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import conv3d, conv2d, conv1d
@@ -60,7 +58,6 @@ class KABNConvNDLayer(nn.Module):
 
         nn.init.kaiming_uniform_(self.poly_weights, nonlinearity='linear')
 
-    @lru_cache(maxsize=128)
     def bernstein_poly(self, x, degree):
 
         bernsteins = torch.ones(x.shape + (self.degree + 1, ), dtype=x.dtype, device=x.device)

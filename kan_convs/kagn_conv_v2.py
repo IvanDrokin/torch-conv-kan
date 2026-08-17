@@ -1,6 +1,4 @@
 # Based on this: https://github.com/Khochawongwat/GRAMKAN/blob/main/model.py
-from functools import lru_cache
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import conv3d, conv2d, conv1d
@@ -82,7 +80,6 @@ class KAGNConvNDLayerV2(nn.Module):
                        ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
                ) * self.beta_weights[n]
 
-    @lru_cache(maxsize=128)  # Cache to avoid recomputation of Gram polynomials
     def gram_poly(self, x, degree):
         p0 = x.new_ones(x.size())
 

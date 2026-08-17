@@ -1,7 +1,4 @@
 # based on this implementation: https://github.com/SpaceLearner/JacobiKAN/blob/main/JacobiKANLayer.py
-
-from functools import lru_cache
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import conv3d, conv2d, conv1d
@@ -65,7 +62,6 @@ class KAJNConvNDLayer(nn.Module):
 
         nn.init.normal_(self.poly_weights, mean=0.0, std=1 / (input_dim * (degree + 1) * kernel_size ** ndim))
 
-    @lru_cache(maxsize=128)
     def compute_jacobi_polynomials(self, x, order):
         # Base case polynomials P0 and P1
         P0 = x.new_ones(x.shape)  # P0 = 1 for all x

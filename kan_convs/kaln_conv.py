@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import conv3d, conv2d, conv1d
@@ -60,7 +58,6 @@ class KALNConvNDLayer(nn.Module):
 
         nn.init.kaiming_uniform_(self.poly_weights, nonlinearity='linear')
 
-    @lru_cache(maxsize=128)  # Cache to avoid recomputation of Legendre polynomials
     def compute_legendre_polynomials(self, x, order):
         # Base case polynomials P0 and P1
         P0 = x.new_ones(x.shape)  # P0 = 1 for all x
