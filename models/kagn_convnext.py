@@ -10,8 +10,7 @@ import torch
 import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
 
-from .conv_kagn_layers import (ConvNeXtKAGNBlock, KAGNConv1DLayerV3,
-                               KAGNConv2DLayerV3, KAGNConv3DLayerV3)  # adjust to actual module path
+from kan_convs import (ConvNeXtKAGNBlock, KAGNConv1DLayerV3,  KAGNConv2DLayerV3, KAGNConv3DLayerV3)
 
 # Original ConvNeXt V2 size configs: (depths, dims)
 cfgs: Dict[str, Tuple[Tuple[int, ...], Tuple[int, ...]]] = {
